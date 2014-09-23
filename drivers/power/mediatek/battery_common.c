@@ -220,10 +220,12 @@ static int suspend_discharging = -1;
 /* FOR ANDROID BATTERY SERVICE */
 /* ////////////////////////////////////////////////////////////////////////////// */
 
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 struct wireless_data {
 	struct power_supply psy;
 	int WIRELESS_ONLINE;
 };
+#endif
 
 struct ac_data {
 	struct power_supply psy;
@@ -260,9 +262,11 @@ struct battery_data {
 	int adjust_power;
 };
 
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 static enum power_supply_property wireless_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
+#endif
 
 static enum power_supply_property ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
@@ -467,6 +471,7 @@ int init_proc_log(void)
 }
 
 
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 static int wireless_get_property(struct power_supply *psy,
 				 enum power_supply_property psp, union power_supply_propval *val)
 {
@@ -483,6 +488,7 @@ static int wireless_get_property(struct power_supply *psy,
 	}
 	return ret;
 }
+#endif
 
 static int ac_get_property(struct power_supply *psy,
 			   enum power_supply_property psp, union power_supply_propval *val)
@@ -599,6 +605,7 @@ static int battery_get_property(struct power_supply *psy,
 	return ret;
 }
 
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 /* wireless_data initialization */
 static struct wireless_data wireless_main = {
 	.psy = {
@@ -610,6 +617,7 @@ static struct wireless_data wireless_main = {
 		},
 	.WIRELESS_ONLINE = 0,
 };
+#endif
 
 /* ac_data initialization */
 static struct ac_data ac_main = {
@@ -1751,6 +1759,7 @@ void update_charger_info(int wireless_state)
 #endif
 }
 
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 static void wireless_update(struct wireless_data *wireless_data)
 {
 	struct power_supply *wireless_psy = &wireless_data->psy;
@@ -1768,6 +1777,7 @@ static void wireless_update(struct wireless_data *wireless_data)
 
 	power_supply_changed(wireless_psy);
 }
+#endif // CONFIG_MTK_WIRELESS_CHARGER_SUPPORT
 
 static void ac_update(struct ac_data *ac_data)
 {
@@ -2501,7 +2511,9 @@ static void mt_battery_update_status(void)
 	battery_xlog_printk(BAT_LOG_CRTI, "[BATTERY] CONFIG_POWER_EXT, no update Android.\n");
 #else
 	{
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 		wireless_update(&wireless_main);
+#endif
 		battery_update(&battery_main);
 		ac_update(&ac_main);
 		usb_update(&usb_main);
@@ -3305,6 +3317,8 @@ static int battery_probe(struct platform_device *dev)
 	}
 	battery_xlog_printk(BAT_LOG_CRTI, "[BAT_probe] power_supply_register USB Success !!\n");
 
+
+#if defined(CONFIG_MTK_WIRELESS_CHARGER_SUPPORT)
 	ret = power_supply_register(&(dev->dev), &wireless_main.psy);
 	if (ret) {
 		battery_xlog_printk(BAT_LOG_CRTI,
@@ -3313,6 +3327,7 @@ static int battery_probe(struct platform_device *dev)
 	}
 	battery_xlog_printk(BAT_LOG_CRTI,
 			    "[BAT_probe] power_supply_register WIRELESS Success !!\n");
+#endif
 
 	ret = power_supply_register(&(dev->dev), &battery_main.psy);
 	if (ret) {
