@@ -1539,8 +1539,11 @@ static int mt_cpufreq_init(struct cpufreq_policy *policy)
         ret = mt_setup_freqs_table(policy, ARRAY_AND_SIZE(mt6582_freqs_e1));
 #endif
 
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG)
     /* install callback */
-    cpufreq_freq_check = _downgrade_freq_check;
+    if(policy->governor == &cpufreq_gov_hotplug)
+        cpufreq_freq_check = _downgrade_freq_check;
+#endif
 
     if (ret) {
         xlog_printk(ANDROID_LOG_ERROR, "Power/DVFS", "failed to setup frequency table\n");
@@ -2044,9 +2047,12 @@ void mt_cpufreq_thermal_protect(unsigned int limited_power)
         g_limited_max_freq = g_max_freq_by_ptp;
 
         cpufreq_driver_target(policy, g_limited_max_freq, CPUFREQ_RELATION_L);
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG)
+    if(policy->governor == &cpufreq_gov_hotplug) {
         hp_limited_cpu_num(g_limited_max_ncpu);
-
         dbs_freq_thermal_limited(0, g_limited_max_freq);
+    }
+#endif
         xlog_printk(ANDROID_LOG_INFO, "Power/DVFS", "thermal limit g_limited_max_freq = %d, g_limited_max_ncpu = %d\n", g_limited_max_freq, g_limited_max_ncpu);
     }
     else
@@ -2088,8 +2094,10 @@ void mt_cpufreq_thermal_protect(unsigned int limited_power)
         }
 
         xlog_printk(ANDROID_LOG_INFO, "Power/DVFS", "thermal limit g_limited_max_freq = %d, g_limited_max_ncpu = %d\n", g_limited_max_freq, g_limited_max_ncpu);
-
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG)
+    if(policy->governor == &cpufreq_gov_hotplug)
         hp_limited_cpu_num(g_limited_max_ncpu);
+#endif
 
         if (num_online_cpus() > g_limited_max_ncpu)
         {
@@ -2102,7 +2110,10 @@ void mt_cpufreq_thermal_protect(unsigned int limited_power)
 
         cpufreq_driver_target(policy, g_limited_max_freq, CPUFREQ_RELATION_L);
 
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG)
+    if(policy->governor == &cpufreq_gov_hotplug)
         dbs_freq_thermal_limited(1, g_limited_max_freq);
+#endif
     }
 
     cpufreq_cpu_put(policy);
