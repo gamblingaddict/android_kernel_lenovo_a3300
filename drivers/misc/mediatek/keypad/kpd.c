@@ -14,6 +14,8 @@
  *
  */
 
+#include <linux/workqueue.h>
+#include <linux/timer.h>
 
 /*kpd.h file path: ALPS/mediatek/kernel/include/linux */
 #include <linux/kpd.h>
@@ -30,6 +32,13 @@
 void __iomem *kp_base;
 static unsigned int kp_irqnr;
 #endif	
+
+#define FORCE_POWERKEY
+#define FORCE_POWERKEY_SECONDS   8
+struct timer_list timer;
+//extern void arch_reset(char mode, const char *cmd);
+extern void mt_power_off(void);
+
 struct input_dev *kpd_input_dev;
 static bool kpd_suspend = false;
 static int kpd_show_hw_keycode = 1;
@@ -92,6 +101,28 @@ static struct platform_driver kpd_pdrv = {
 	},
 };
 
+static void timer_exit() 
+{ 
+    del_timer(&timer); 
+}
+
+static void timer_function() 
+{ 
+    timer_exit();
+    //arch_reset(0, "charger");
+    mt_power_off();
+}
+
+static int timer_init() 
+{ 
+    init_timer(&timer); 
+    timer.data= 5; 
+    timer.expires = jiffies + (FORCE_POWERKEY_SECONDS*HZ);  
+    timer.function = timer_function; 
+    add_timer(&timer); 
+    printk(KPD_SAY "add_timer for FORCE_POWERKEY\n"); 
+    return 0; 
+}
 /********************************************************************/
 static void kpd_memory_setting(void)
 {
@@ -194,7 +225,7 @@ static const u16 kpd_auto_keymap[] = {
 #define AEE_VOLUMEDOWN_BIT	1
 #define AEE_DELAY_TIME		15
 /* enable volup + voldown was pressed 5~15 s Trigger aee manual dump */
-#define AEE_ENABLE_5_15		1
+#define AEE_ENABLE_5_15		0
 static struct hrtimer aee_timer;
 static unsigned long aee_pressed_keys;
 static bool aee_timer_started;
@@ -356,6 +387,18 @@ void kpd_pwrkey_pmic_handler(unsigned long pressed)
 		printk("KPD input device not ready\n");
 		return;
 	}
+		#ifdef FORCE_POWERKEY
+		  if(pressed == 1)
+		  {
+		      printk(KPD_SAY "timer_init for FORCE_POWERKEY\n"); 
+		      timer_init();
+		  }
+		  else if(pressed == 0)
+		  {
+		      printk(KPD_SAY "timer_exit for FORCE_POWERKEY\n"); 
+		      timer_exit();
+		  }
+		#endif	
 	kpd_pmic_pwrkey_hal(pressed);
 }
 #endif
