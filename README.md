@@ -11,7 +11,7 @@
 6) Brightness
 7) OTG
 
-*Not working:
+* Not working:
 1) Cameras
 2) Accelerometer
 3) Headset
