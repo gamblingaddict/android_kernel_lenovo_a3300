@@ -10,8 +10,8 @@
 5) Sound from the main speakers
 6) Brightness
 7) OTG
+8) Accelerometer
 
 * Not working:
 1) Cameras
-2) Accelerometer
-3) Headset
+2) Headset
