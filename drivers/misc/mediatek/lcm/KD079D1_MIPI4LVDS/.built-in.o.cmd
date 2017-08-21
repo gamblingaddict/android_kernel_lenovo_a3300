@@ -1,1 +1,0 @@
-cmd_drivers/misc/mediatek/lcm/KD079D1_MIPI4LVDS/built-in.o :=  /mnt/android/4.8/bin/arm-eabi-ld -EL    -r -o drivers/misc/mediatek/lcm/KD079D1_MIPI4LVDS/built-in.o drivers/misc/mediatek/lcm/KD079D1_MIPI4LVDS/KD079D1_MIPI4LVDS.o 

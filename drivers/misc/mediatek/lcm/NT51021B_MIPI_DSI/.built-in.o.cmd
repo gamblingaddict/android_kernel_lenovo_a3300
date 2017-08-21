@@ -1,1 +1,0 @@
-cmd_drivers/misc/mediatek/lcm/NT51021B_MIPI_DSI/built-in.o :=  /mnt/android/4.8/bin/arm-eabi-ld -EL    -r -o drivers/misc/mediatek/lcm/NT51021B_MIPI_DSI/built-in.o drivers/misc/mediatek/lcm/NT51021B_MIPI_DSI/nt51021b_mipi_dsi.o 
