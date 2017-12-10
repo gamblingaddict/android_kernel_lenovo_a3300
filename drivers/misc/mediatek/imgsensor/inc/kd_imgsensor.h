@@ -235,6 +235,7 @@
 #define A5141MIPI_SENSOR_ID                     0x4800
 #define SP0A19_YUV_SENSOR_ID				0xA6
 #define A5142MIPI_SENSOR_ID                     0x4800
+#define GC0329_SENSOR_ID                        0x00c0
 #define GC0313MIPI_YUV_SENSOR_ID                0xD0
 #define IMX219_SENSOR_ID            			0x0219//0x0119//
 #define IMX135_SENSOR_ID                        0x0135
@@ -243,6 +244,9 @@
 #define IMX214_SENSOR_ID                        0x0214
 #define IMX220_SENSOR_ID                        0x0220
 #define GC2035_SENSOR_ID			0x2035
+#define GC2235MIPI_SENSOR_ID			0x2235
+//wangliangfeng 20140113 add for shengtai module
+#define GC2235MIPI_ST_SENSOR_ID			0x2236
 #define GC0329_SENSOR_ID			0xC0
 #define GC0330_SENSOR_ID			0xC1
 #define S5K4H5YX_2LANE_SENSOR_ID                0x485B
@@ -342,6 +346,12 @@
 #define SENSOR_DRVNAME_S5K3H2YX_MIPI_RAW   "s5k3h2yxmipiraw"
 #define SENSOR_DRVNAME_S5K2P8_MIPI_RAW   "s5k2p8mipiraw"
 #define SENSOR_DRVNAME_SP0A19_YUV   "sp0a19yuv"
+//niyangadd
+#define SENSOR_DRVNAME_GC2235_RAW   "gc2235raw"
+#define SENSOR_DRVNAME_GC0329_YUV   	"gc0329yuv"
+#define SENSOR_DRVNAME_GC2235_MIPI_RAW   "gc2235mipiraw"
+//wangliangfeng 201400113 add for shengtai module name
+#define SENSOR_DRVNAME_GC2235_ST_MIPI_RAW   "gc2236mipiraw"
 #define SENSOR_DRVNAME_IMX219_MIPI_RAW "imx219mipiraw"
 #define SENSOR_DRVNAME_IMX135_MIPI_RAW   "imx135mipiraw"
 #define SENSOR_DRVNAME_IMX214_MIPI_RAW   "imx214mipiraw"

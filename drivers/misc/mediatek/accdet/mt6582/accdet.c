@@ -1,10 +1,15 @@
 #include "accdet.h"
 
+//#include <mach/mt_boot.h>
 #include <cust_eint.h>
 #include <cust_gpio_usage.h>
 #include <mach/mt_gpio.h>
 #include <mach/eint.h>
 
+#define MTK_ALPS_BOX_SUPPORT
+#define EARPHONE_SWITCH
+#define GPIO_HEADSET_SWITCH1 GPIO116
+#define GPIO_HEADSET_SWITCH2 GPIO117
 
 #define SW_WORK_AROUND_ACCDET_REMOTE_BUTTON_ISSUE
 #define DEBUG_THREAD 1
@@ -19,7 +24,6 @@ static variable defination
 static int button_press_debounce = 0x400;
 
 static int debug_enable = 1;
-int cur_key = 0;
 
 struct headset_mode_settings *cust_headset_settings = NULL;
 
@@ -163,16 +167,24 @@ void accdet_auxadc_switch(int enable)
 	 pmic_pwrap_write(ACCDET_RSV, ACCDET_1V9_MODE_ON);
      ACCDET_DEBUG("ACCDET enable switch in 1.9v mode \n");
 	#else
-	 pmic_pwrap_write(ACCDET_RSV, ACCDET_2V8_MODE_ON);
-	 ACCDET_DEBUG("ACCDET enable switch in 2.8v mode \n");
+	#ifdef CONFIG_MTK_PMIC_MT6397
+	pmic_pwrap_write(0x732, ACCDET_2V8_MODE_ON);
+	#else
+	pmic_pwrap_write(ACCDET_RSV, ACCDET_2V8_MODE_ON);
+	#endif
+	ACCDET_DEBUG("ACCDET enable switch in 2.8v mode \n");
 	#endif
    }else {
    	#ifndef ACCDET_28V_MODE
-	 pmic_pwrap_write(ACCDET_RSV, ACCDET_1V9_MODE_OFF);
-     ACCDET_DEBUG("ACCDET diable switch in 1.9v mode \n");
+	pmic_pwrap_write(ACCDET_RSV, ACCDET_1V9_MODE_OFF);
+     	ACCDET_DEBUG("ACCDET diable switch in 1.9v mode \n");
 	#else
-	 pmic_pwrap_write(ACCDET_RSV, ACCDET_2V8_MODE_OFF);
-	 ACCDET_DEBUG("ACCDET diable switch in 2.8v mode \n");
+	#ifdef CONFIG_MTK_PMIC_MT6397
+	pmic_pwrap_write(0x732, 0);
+	#else
+	pmic_pwrap_write(ACCDET_RSV, ACCDET_2V8_MODE_OFF);
+	#endif
+	ACCDET_DEBUG("ACCDET diable switch in 2.8v mode \n");
 	#endif
    }
    	
@@ -231,27 +243,41 @@ static void headset_standard_judge_message(void)
 
 static void accdet_FSA8049_enable(void)
 {
+#ifndef MTK_ALPS_BOX_SUPPORT  	
 	mt_set_gpio_mode(GPIO_FSA8049_PIN, GPIO_FSA8049_PIN_M_GPIO);
 	mt_set_gpio_dir(GPIO_FSA8049_PIN, GPIO_DIR_OUT);
 	mt_set_gpio_out(GPIO_FSA8049_PIN, GPIO_OUT_ONE);
+#endif	
 }
 
 static void accdet_FSA8049_disable(void)
 {
+#ifndef MTK_ALPS_BOX_SUPPORT  	
 	mt_set_gpio_mode(GPIO_FSA8049_PIN, GPIO_FSA8049_PIN_M_GPIO);
 	mt_set_gpio_dir(GPIO_FSA8049_PIN, GPIO_DIR_OUT);
 	mt_set_gpio_out(GPIO_FSA8049_PIN, GPIO_OUT_ZERO);
+#endif	
 }
 
 
 #endif
 static void inline headset_plug_out(void) 
 {
+#ifdef CONFIG_AMAZON_METRICS_LOG
+        char buf[128];
+#endif
+
         accdet_status = PLUG_OUT;
         cable_type = NO_DEVICE;
         //update the cable_type
         switch_set_state((struct switch_dev *)&accdet_data, cable_type);
         ACCDET_DEBUG( " [accdet] set state in cable_type = NO_DEVICE\n");
+
+#ifdef CONFIG_AMAZON_METRICS_LOG
+        snprintf(buf, sizeof(buf),
+                "%s:jack:unplugged=1;CT;1:NR", __func__);
+        log_to_metrics(ANDROID_LOG_INFO, "AudioJackEvent", buf);
+#endif
         
 }
 
@@ -339,10 +365,33 @@ static void disable_micbias_callback(struct work_struct *work)
 	#endif
 }
 
+#define ACCDET_ADC_CHANNEL	 (8)
+#define ADC_BOARD_ID	(15)
+static int board_voltage;
+
+extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata);
+static int get_board_voltage(void)
+{
+	int data[4];
+	int voltage = 0;
+	int ret = 0;
+
+	ret = IMM_GetOneChannelValue(ADC_BOARD_ID, data, &voltage);
+	if (0 != ret) {
+		ACCDET_DEBUG("init_board_voltage get ADC error: %d\n", ret);
+		return 0;
+	}
+	board_voltage = (voltage*1500)/4096;
+	ACCDET_DEBUG("board_voltage = %d mv\n", board_voltage);
+
+}
+
 static void accdet_eint_work_callback(struct work_struct *work)
 {
+#ifndef MTK_ALPS_BOX_SUPPORT  	
    //KE under fastly plug in and plug out
     mt_eint_mask(CUST_EINT_ACCDET_NUM);
+#endif    
    
     if (cur_eint_state == EINT_PIN_PLUG_IN) {
 		ACCDET_DEBUG("[Accdet]EINT func :plug-in\n");
@@ -378,7 +427,36 @@ static void accdet_eint_work_callback(struct work_struct *work)
 			pmic_pwrap_write(ACCDET_STATE_SWCTRL, (pmic_pwrap_read(ACCDET_STATE_SWCTRL)|ACCDET_SWCTRL_IDLE_EN));
 		#endif  
 		//enable ACCDET unit
-			enable_accdet(ACCDET_SWCTRL_EN); 
+			enable_accdet(ACCDET_SWCTRL_EN);
+		#if defined(EARPHONE_SWITCH)
+			msleep(60);
+			int accdet_adc = 0;
+			int i = 0;
+			int arr[10] = {0};
+			accdet_auxadc_switch(1);
+			for (i = 0; i < 10; i++) {
+				arr[i] = PMIC_IMM_GetOneChannelValue(ACCDET_ADC_CHANNEL, 1, 1);
+				printk("accdet_voltage arr[%d]=%d\n", i, arr[i]);
+			}
+			accdet_auxadc_switch(0);
+			accdet_adc = (arr[4] + arr[5] + arr[6] + arr[7])/4;
+			ACCDET_DEBUG("accdet_voltage = %d mv, board_voltage = %d mv\n", accdet_adc, board_voltage);
+			if (board_voltage > 570) {
+				if (accdet_adc > 550) {
+					ACCDET_DEBUG("[Accdet] ctia headset!!!\n");
+					mt_set_gpio_out(GPIO_HEADSET_SWITCH1, GPIO_OUT_ZERO);
+					mt_set_gpio_out(GPIO_HEADSET_SWITCH2, GPIO_OUT_ONE);
+				} else {
+					ACCDET_DEBUG("[Accdet] omtp headset!!!\n");
+					mt_set_gpio_out(GPIO_HEADSET_SWITCH1, GPIO_OUT_ONE);
+					mt_set_gpio_out(GPIO_HEADSET_SWITCH2, GPIO_OUT_ZERO);
+				}
+			} else {
+				ACCDET_DEBUG("[Accdet] ---HVT EVT1.0 board--- ctia headset!!!\n");
+				mt_set_gpio_out(GPIO_HEADSET_SWITCH1, GPIO_OUT_ZERO);
+				mt_set_gpio_out(GPIO_HEADSET_SWITCH2, GPIO_OUT_ONE);
+			}
+		#endif
     } else {
 //EINT_PIN_PLUG_OUT
 //Disable ACCDET
@@ -402,6 +480,10 @@ static void accdet_eint_work_callback(struct work_struct *work)
 			accdet_auxadc_switch(0);
 			disable_accdet();			   
 			headset_plug_out();
+			#if defined(EARPHONE_SWITCH)
+			mt_set_gpio_out(GPIO_HEADSET_SWITCH1, GPIO_OUT_ZERO);
+			mt_set_gpio_out(GPIO_HEADSET_SWITCH2, GPIO_OUT_ONE);
+			#endif
 			#ifdef ACCDET_28V_MODE
 			pmic_pwrap_write(ACCDET_RSV, ACCDET_1V9_MODE_OFF);
 			ACCDET_DEBUG("ACCDET use in 1.9V mode!! \n");
@@ -410,7 +492,9 @@ static void accdet_eint_work_callback(struct work_struct *work)
     }
     //unmask EINT
     //msleep(500);
+#ifndef MTK_ALPS_BOX_SUPPORT      
     mt_eint_unmask(CUST_EINT_ACCDET_NUM);
+#endif    
     ACCDET_DEBUG("[Accdet]eint unmask  !!!!!!\n");
     
 }
@@ -421,6 +505,7 @@ static void accdet_eint_func(void)
 	int ret=0;
 	if(cur_eint_state ==  EINT_PIN_PLUG_IN ) 
 	{
+#ifndef MTK_ALPS_BOX_SUPPORT  		
 	/*
 	To trigger EINT when the headset was plugged in
 	We set the polarity back as we initialed.
@@ -435,6 +520,7 @@ static void accdet_eint_func(void)
         mt_eint_set_hw_debounce(CUST_EINT_ACCDET_NUM, CUST_EINT_ACCDET_DEBOUNCE_CN);
 #endif
 
+#endif
 		/* update the eint status */
 		cur_eint_state = EINT_PIN_PLUG_OUT;
 //#ifdef ACCDET_LOW_POWER
@@ -443,6 +529,7 @@ static void accdet_eint_func(void)
 	} 
 	else 
 	{
+#ifndef MTK_ALPS_BOX_SUPPORT  		
 	/* 
 	To trigger EINT when the headset was plugged out 
 	We set the opposite polarity to what we initialed. 
@@ -455,6 +542,7 @@ static void accdet_eint_func(void)
 	/* update the eint status */
 #ifdef ACCDET_SHORT_PLUGOUT_DEBOUNCE
         mt_eint_set_hw_debounce(CUST_EINT_ACCDET_NUM, ACCDET_SHORT_PLUGOUT_DEBOUNCE_CN);
+#endif 
 #endif        
 		cur_eint_state = EINT_PIN_PLUG_IN;
 	
@@ -484,6 +572,7 @@ static inline int accdet_setup_eint(void)
 	/*configure to GPIO function, external interrupt*/
     ACCDET_DEBUG("[Accdet]accdet_setup_eint\n");
 	
+#ifndef MTK_ALPS_BOX_SUPPORT  	
 	mt_set_gpio_mode(GPIO_ACCDET_EINT_PIN, GPIO_ACCDET_EINT_PIN_M_EINT);
     mt_set_gpio_dir(GPIO_ACCDET_EINT_PIN, GPIO_DIR_IN);
     mt_set_gpio_pull_enable(GPIO_ACCDET_EINT_PIN, GPIO_PULL_DISABLE); //To disable GPIO PULL.
@@ -493,6 +582,7 @@ static inline int accdet_setup_eint(void)
 	ACCDET_DEBUG("[Accdet]accdet set EINT finished, accdet_eint_num=%d, accdet_eint_debounce_en=%d, accdet_eint_polarity=%d\n", CUST_EINT_ACCDET_NUM, CUST_EINT_ACCDET_DEBOUNCE_EN, CUST_EINT_ACCDET_TYPE);
 	
 	mt_eint_unmask(CUST_EINT_ACCDET_NUM);  
+#endif
 	return 0;
 }
 
@@ -502,12 +592,29 @@ static inline int accdet_setup_eint(void)
 extern int PMIC_IMM_GetOneChannelValue(int dwChannel, int deCount, int trimd);
 
 #define KEY_SAMPLE_PERIOD        (60)            //ms
+#ifdef CONFIG_MTK_PMIC_MT6397
+#define MULTIKEY_ADC_CHANNEL	 (5)
+#else
 #define MULTIKEY_ADC_CHANNEL	 (8)
+#endif
 
 #define NO_KEY			 (0x0)
 #define UP_KEY			 (0x01)
 #define MD_KEY		  	 (0x02)
 #define DW_KEY			 (0x04)
+
+#define SHORT_PRESS		 (0x0)
+#define LONG_PRESS		 (0x10)
+#define SHORT_UP                 ((UP_KEY) | SHORT_PRESS)
+#define SHORT_MD             	 ((MD_KEY) | SHORT_PRESS)
+#define SHORT_DW                 ((DW_KEY) | SHORT_PRESS)
+#define LONG_UP                  ((UP_KEY) | LONG_PRESS)
+#define LONG_MD                  ((MD_KEY) | LONG_PRESS)
+#define LONG_DW                  ((DW_KEY) | LONG_PRESS)
+
+#define KEYDOWN_FLAG 1
+#define KEYUP_FLAG 0
+//static int g_adcMic_channel_num =0;
 
 
 static DEFINE_MUTEX(accdet_multikey_mutex);
@@ -521,98 +628,138 @@ static DEFINE_MUTEX(accdet_multikey_mutex);
 0V<=MD< 0.09V<= UP<0.24V<=DW <0.5V
 
 */
-
-#define DW_KEY_HIGH_THR	 (500) //0.50v=500000uv
-#define DW_KEY_THR		 (240) //0.24v=240000uv
-#define UP_KEY_THR       (90) //0.09v=90000uv
+/*HVT*/
+#define DW_KEY_HIGH_THR	 (400) /*400mv*/
+#define DW_KEY_THR		 (280) /*280mv*/
+#define UP_KEY_THR       (180) /*180mv*/
 #define MD_KEY_THR		 (0)
+
+/*EVT1.2*/
+#define DW_KEY_HIGH_THR_1	 (400) /*400mv*/
+#define DW_KEY_THR_1		 (200) /*200mv*/
+#define UP_KEY_THR_1       (100) /*100mv*/
+#define MD_KEY_THR_1		 (0)
+
 
 static int key_check(int b)
 {
-	//ACCDET_DEBUG("adc_data: %d v\n",b);
+	/*ACCDET_DEBUG("adc_data: %d v\n",b);*/
 	
 	/* 0.24V ~ */
-	ACCDET_DEBUG("[accdet] come in key_check!!\n");
-	if((b<DW_KEY_HIGH_THR)&&(b >= DW_KEY_THR)) 
+	if (board_voltage > 570) /*Board EVT1.2*/
 	{
-		ACCDET_DEBUG("[accdet]adc_data: %d mv\n",b);
-		return DW_KEY;
-	} 
-	else if ((b < DW_KEY_THR)&& (b >= UP_KEY_THR))
-	{
-		ACCDET_DEBUG("[accdet]adc_data: %d mv\n",b);
-		return UP_KEY;
+		ACCDET_DEBUG("accdet: come in key_check!!\n");
+		if ((b < DW_KEY_HIGH_THR_1) && (b >= DW_KEY_THR_1)) {
+			ACCDET_DEBUG("adc_data: %d mv\n", b);
+			return DW_KEY;
+		} else if ((b < DW_KEY_THR_1) && (b >= UP_KEY_THR_1)) {
+			ACCDET_DEBUG("adc_data: %d mv\n", b);
+			return UP_KEY;
+		} else if ((b < UP_KEY_THR_1) && (b >= MD_KEY_THR_1)) {
+			ACCDET_DEBUG("adc_data: %d mv\n", b);
+			return MD_KEY;
+		}
+		ACCDET_DEBUG("accdet: leave key_check!!\n");
+		return NO_KEY;
+	} else {
+		ACCDET_DEBUG("accdet: come in key_check!!\n");
+		if ((b < DW_KEY_HIGH_THR) && (b >= DW_KEY_THR)) {
+			ACCDET_DEBUG("adc_data: %d mv\n", b);
+			return DW_KEY;
+		} else if ((b < DW_KEY_THR) && (b >= UP_KEY_THR)) {
+			ACCDET_DEBUG("adc_data: %d mv\n", b);
+			return UP_KEY;
+		} else if ((b < UP_KEY_THR) && (b >= MD_KEY_THR)) {
+			ACCDET_DEBUG("adc_data: %d mv\n", b);
+			return MD_KEY;
+		}
+		ACCDET_DEBUG("accdet: leave key_check!!\n");
+		return NO_KEY;
 	}
-	else if ((b < UP_KEY_THR) && (b >= MD_KEY_THR))
-	{
-		ACCDET_DEBUG("[accdet]adc_data: %d mv\n",b);
-		return MD_KEY;
-	}
-	ACCDET_DEBUG("[accdet] leave key_check!!\n");
-	return NO_KEY;
 }
+
 static void send_key_event(int keycode,int flag)
 {
-#if 0
-    if(call_status == 0)
+    if (0)
     {
                 switch (keycode)
                 {
                 case DW_KEY:
 					input_report_key(kpd_accdet_dev, KEY_NEXTSONG, flag);
 					input_sync(kpd_accdet_dev);
-					ACCDET_DEBUG("[accdet]KEY_NEXTSONG %d\n",flag);
+					ACCDET_DEBUG("KEY_NEXTSONG %d\n",flag);
 					break;
 				case UP_KEY:
 		   	        input_report_key(kpd_accdet_dev, KEY_PREVIOUSSONG, flag);
                     input_sync(kpd_accdet_dev);
-					ACCDET_DEBUG("[accdet]KEY_PREVIOUSSONG %d\n",flag);
-		   	        break;			
-				case MD_KEY:
-		   	        input_report_key(kpd_accdet_dev, KEY_PLAYPAUSE, flag);
-                    input_sync(kpd_accdet_dev);
-					ACCDET_DEBUG("[accdet]KEY_PLAYPAUSE %d\n",flag);
+					ACCDET_DEBUG("KEY_PREVIOUSSONG %d\n",flag);
 		   	        break;
                 }
      }
 	else
 	{
-#endif
 	          switch (keycode)
               {
                 case DW_KEY:
 					input_report_key(kpd_accdet_dev, KEY_VOLUMEDOWN, flag);
 					input_sync(kpd_accdet_dev);
-					ACCDET_DEBUG("[accdet]KEY_VOLUMEDOWN %d\n",flag);
+					ACCDET_DEBUG("KEY_VOLUMEDOWN %d\n",flag);
 					break;
 				case UP_KEY:
 		   	        input_report_key(kpd_accdet_dev, KEY_VOLUMEUP, flag);
                     input_sync(kpd_accdet_dev);
-					ACCDET_DEBUG("[accdet]KEY_VOLUMEUP %d\n",flag);
+					ACCDET_DEBUG("KEY_VOLUMEUP %d\n",flag);
 		   	        break;
-				case MD_KEY:
-					input_report_key(kpd_accdet_dev, KEY_PLAYPAUSE, flag);
-					input_sync(kpd_accdet_dev);
-					ACCDET_DEBUG("[accdet]KEY_PLAYPAUSE %d\n",flag);
-					break;
 	          }
-//	}
-
+	}
 }
-static void multi_key_detection(int current_status)
+static int multi_key_detection(void)
 {
-	//int index = 0;
+    int current_status = 0;
+	int index = 0;
+	int count = long_press_time / (KEY_SAMPLE_PERIOD + 40 ); //ADC delay
 	int m_key = 0;
+	int cur_key = 0;
 	int cali_voltage=0;
 	
-	if(0 == current_status){
+	cali_voltage = PMIC_IMM_GetOneChannelValue(MULTIKEY_ADC_CHANNEL,1,1);
+	ACCDET_DEBUG("[Accdet]adc cali_voltage1 = %d mv\n", cali_voltage);
+	m_key = cur_key = key_check(cali_voltage);
+
+	send_key_event(m_key, KEYDOWN_FLAG);
+
+	while(index++ < count)
+	{
+
+		/* Check if the current state has been changed */
+		current_status = ((pmic_pwrap_read(ACCDET_STATE_RG) & 0xc0)>>6);
+		ACCDET_DEBUG("[Accdet]accdet current_status = %d\n", current_status);
+		if(current_status != 0)
+		{
+		      send_key_event(m_key, KEYUP_FLAG);
+			return (m_key | SHORT_PRESS);
+		}
+
+		/* Check if the voltage has been changed (press one key and another) */
+		//IMM_GetOneChannelValue(g_adcMic_channel_num, adc_data, &adc_raw);
 		cali_voltage = PMIC_IMM_GetOneChannelValue(MULTIKEY_ADC_CHANNEL,1,1);
-		ACCDET_DEBUG("[Accdet]adc cali_voltage1 = %d mv\n", cali_voltage);
-		m_key = cur_key = key_check(cali_voltage);
+		ACCDET_DEBUG("[Accdet]adc in while loop [%d]= %d mv\n", index, cali_voltage);
+		cur_key = key_check(cali_voltage);
+		if(m_key != cur_key)
+		{
+		       send_key_event(m_key, KEYUP_FLAG);
+			ACCDET_DEBUG("[Accdet]accdet press one key and another happen!!\n");   
+			return (m_key | SHORT_PRESS);
+		}
+		else
+		{
+			m_key = cur_key;
+		}
+		
+		msleep(KEY_SAMPLE_PERIOD);
 	}
-
-	send_key_event(cur_key, !current_status);
-
+	
+	return (m_key | LONG_PRESS);
 }
 
 #endif
@@ -657,7 +804,108 @@ static inline void clear_accdet_interrupt(void)
 	ACCDET_DEBUG("[Accdet]clear_accdet_interrupt: ACCDET_IRQ_STS = 0x%x\n", pmic_pwrap_read(ACCDET_IRQ_STS));
 }
 
+#ifdef SW_WORK_AROUND_ACCDET_REMOTE_BUTTON_ISSUE
 
+
+#define    ACC_ANSWER_CALL      1
+#define    ACC_END_CALL         2
+#define    ACC_MEDIA_PLAYPAUSE  3
+
+#ifdef ACCDET_MULTI_KEY_FEATURE
+#define    ACC_MEDIA_STOP       4
+#define    ACC_MEDIA_NEXT       5
+#define    ACC_MEDIA_PREVIOUS   6
+#define    ACC_VOLUMEUP   7
+#define    ACC_VOLUMEDOWN   8
+#endif
+
+static atomic_t send_event_flag = ATOMIC_INIT(0);
+
+static DECLARE_WAIT_QUEUE_HEAD(send_event_wq);
+
+
+static int accdet_key_event=0;
+
+static int sendKeyEvent(void *unuse)
+{
+    while(1)
+    {
+        ACCDET_DEBUG( " accdet:sendKeyEvent wait\n");
+        //wait for signal
+        wait_event_interruptible(send_event_wq, (atomic_read(&send_event_flag) != 0));
+
+        wake_lock_timeout(&accdet_key_lock, 2*HZ);    //set the wake lock.
+        ACCDET_DEBUG( " accdet:going to send event %d\n", accdet_key_event);
+		
+        if(PLUG_OUT !=accdet_status)
+        {
+            //send key event
+            if(ACC_END_CALL == accdet_key_event)
+            {
+                ACCDET_DEBUG("[Accdet] end call!\n");
+                input_report_key(kpd_accdet_dev, KEY_ENDCALL, 1);
+                input_report_key(kpd_accdet_dev, KEY_ENDCALL, 0);
+                input_sync(kpd_accdet_dev);
+            }
+#ifdef ACCDET_MULTI_KEY_FEATURE
+            if(ACC_MEDIA_PLAYPAUSE == accdet_key_event)
+            {
+                                ACCDET_DEBUG("[Accdet] PLAY_PAUSE !\n");
+                                input_report_key(kpd_accdet_dev, KEY_PLAYPAUSE, 1);
+                                input_report_key(kpd_accdet_dev, KEY_PLAYPAUSE, 0);
+                                input_sync(kpd_accdet_dev);
+            }
+// next, previous, volumeup, volumedown send key in multi_key_detection()
+            if(ACC_MEDIA_NEXT == accdet_key_event)
+            {
+                                ACCDET_DEBUG("[Accdet] NEXT ..\n");
+                      
+            }
+            if(ACC_MEDIA_PREVIOUS == accdet_key_event)
+            {
+                                ACCDET_DEBUG("[Accdet] PREVIOUS..\n");
+                           
+            }
+	      if(ACC_VOLUMEUP== accdet_key_event)
+            {
+                                ACCDET_DEBUG("[Accdet] VOLUMUP ..\n");
+                           
+            }
+	       if(ACC_VOLUMEDOWN== accdet_key_event)
+            {
+                                ACCDET_DEBUG("[Accdet] VOLUMDOWN..\n");
+                     
+            }
+
+#else
+			if(ACC_MEDIA_PLAYPAUSE == accdet_key_event)
+            {
+                                ACCDET_DEBUG("[Accdet] PLAY_PAUSE !\n");
+                                input_report_key(kpd_accdet_dev, KEY_PLAYPAUSE, 1);
+                                input_report_key(kpd_accdet_dev, KEY_PLAYPAUSE, 0);
+                                input_sync(kpd_accdet_dev);
+            }
+#endif
+        }
+        atomic_set(&send_event_flag, 0);
+
+      //  wake_unlock(&accdet_key_lock); //unlock wake lock
+    }
+    return 0;
+}
+
+static ssize_t notify_sendKeyEvent(int event)
+{
+	 
+    accdet_key_event = event;
+    atomic_set(&send_event_flag, 1);
+    wake_up(&send_event_wq);
+    ACCDET_DEBUG( " accdet:notify_sendKeyEvent !\n");
+    return 0;
+}
+
+
+#endif
 
 static inline void check_cable_type(void)
 {
@@ -697,7 +945,7 @@ static inline void check_cable_type(void)
 				 if (current_status == 0 && show_icon_delay != 0)
 				 {
 					accdet_auxadc_switch(1);//switch on when need to use auxadc read voltage
-					pin_adc_value = PMIC_IMM_GetOneChannelValue(8,10,1);
+					pin_adc_value = PMIC_IMM_GetOneChannelValue(MULTIKEY_ADC_CHANNEL,1,1);
 					ACCDET_DEBUG("[Accdet]pin_adc_value = %d mv!\n", pin_adc_value);
 					accdet_auxadc_switch(0);			
 					if (200 > pin_adc_value && pin_adc_value> 100) //100mv   ilegal headset
@@ -812,9 +1060,13 @@ static inline void check_cable_type(void)
 		    button_status = 1;
 			if(button_status)
 		    {	
+			#ifdef ACCDET_MULTI_KEY_FEATURE		
+				int multi_key = NO_KEY;		
+			  	//mdelay(10);
+			   	//if plug out don't send key
 			    mutex_lock(&accdet_eint_irq_sync_mutex);
 				if(1 == eint_accdet_sync_flag) {   
-					multi_key_detection(current_status);
+					multi_key = multi_key_detection();
 				}else {
 					ACCDET_DEBUG("[Accdet] multi_key_detection: Headset has plugged out\n");
 				}
@@ -823,8 +1075,67 @@ static inline void check_cable_type(void)
 			//recover  pwm frequency and duty
                 pmic_pwrap_write(ACCDET_PWM_WIDTH, REGISTER_VALUE(cust_headset_settings->pwm_width));
                 pmic_pwrap_write(ACCDET_PWM_THRESH, REGISTER_VALUE(cust_headset_settings->pwm_thresh));
-	     	}
-	   	  }
+			switch (multi_key) 
+			{
+			case SHORT_UP:
+				ACCDET_DEBUG("[Accdet] Short press up (0x%x)\n", multi_key);
+                           if(call_status == 0)
+                           {
+                                 notify_sendKeyEvent(ACC_MEDIA_PREVIOUS);
+                           }
+					       else
+						   {
+							     notify_sendKeyEvent(ACC_VOLUMEUP);
+						    }
+				break;
+			case SHORT_MD:
+				ACCDET_DEBUG("[Accdet] Short press middle (0x%x)\n", multi_key);
+                                 notify_sendKeyEvent(ACC_MEDIA_PLAYPAUSE);
+				break;
+			case SHORT_DW:
+				ACCDET_DEBUG("[Accdet] Short press down (0x%x)\n", multi_key);
+                           if(call_status == 0)
+                            {
+                                 notify_sendKeyEvent(ACC_MEDIA_NEXT);
+                            }
+							else
+							{
+							     notify_sendKeyEvent(ACC_VOLUMEDOWN);
+							}
+				break;
+			case LONG_UP:
+				ACCDET_DEBUG("[Accdet] Long press up (0x%x)\n", multi_key);
+                                 send_key_event(UP_KEY, KEYUP_FLAG);
+                            
+				break;
+			case LONG_MD:
+				ACCDET_DEBUG("[Accdet] Long press middle (0x%x)\n", multi_key);
+                                 notify_sendKeyEvent(ACC_END_CALL);
+				break;
+			case LONG_DW:
+				ACCDET_DEBUG("[Accdet] Long press down (0x%x)\n", multi_key);			
+                                 send_key_event(DW_KEY, KEYUP_FLAG);
+							
+				break;
+			default:
+				ACCDET_DEBUG("[Accdet] unkown key (0x%x)\n", multi_key);
+				break;
+			}
+			#else
+                if(call_status != 0) 
+	            {
+	                   if(is_long_press())
+	                   {
+                             ACCDET_DEBUG("[Accdet]send long press remote button event %d \n",ACC_END_CALL);
+                             notify_sendKeyEvent(ACC_END_CALL);
+                       } else {
+                             ACCDET_DEBUG("[Accdet]send short press remote button event %d\n",ACC_ANSWER_CALL);
+                             notify_sendKeyEvent(ACC_MEDIA_PLAYPAUSE);
+                       }
+                 }
+			#endif////end  ifdef ACCDET_MULTI_KEY_FEATURE else
+	     }
+}
           else if(current_status == 1)
           {
           	 mutex_lock(&accdet_eint_irq_sync_mutex);
@@ -844,6 +1155,10 @@ static inline void check_cable_type(void)
 		        mutex_lock(&accdet_eint_irq_sync_mutex);
 		        if(1 == eint_accdet_sync_flag) {
 		   			accdet_status = PLUG_OUT;
+					#if defined(EARPHONE_SWITCH)
+						mt_set_gpio_out(GPIO_HEADSET_SWITCH1, GPIO_OUT_ZERO);
+						mt_set_gpio_out(GPIO_HEADSET_SWITCH2, GPIO_OUT_ONE);
+					#endif
 			 	}else {
 					ACCDET_DEBUG("[Accdet] Headset has plugged out\n");
 			 	}
@@ -885,15 +1200,13 @@ static inline void check_cable_type(void)
             else if(current_status == 1)
             {
 				mutex_lock(&accdet_eint_irq_sync_mutex);
-		        if(1 == eint_accdet_sync_flag) {			
-					multi_key_detection(current_status);
+		        if(1 == eint_accdet_sync_flag) {
 					accdet_status = MIC_BIAS;		
 	        		cable_type = HEADSET_MIC;
 				}else {
 					ACCDET_DEBUG("[Accdet] Headset has plugged out\n");
 			 	}
 			 	mutex_unlock(&accdet_eint_irq_sync_mutex);
-				accdet_auxadc_switch(0);
 				#ifdef ACCDET_PIN_RECOGNIZATION
 				cable_pin_recognition = 0;
 				ACCDET_DEBUG("[Accdet] cable_pin_recognition = %d\n", cable_pin_recognition);
@@ -1011,6 +1324,10 @@ static inline void check_cable_type(void)
 } 
 static void accdet_work_callback(struct work_struct *work)
 {
+#ifdef CONFIG_AMAZON_METRICS_LOG
+        char buf[128];
+        char *string = NULL;
+#endif
 
     wake_lock(&accdet_irq_lock);
     check_cable_type();
@@ -1023,6 +1340,25 @@ static void accdet_work_callback(struct work_struct *work)
 	}
 	mutex_unlock(&accdet_eint_irq_sync_mutex);
 	ACCDET_DEBUG( " [accdet] set state in cable_type  status\n");
+
+#ifdef CONFIG_AMAZON_METRICS_LOG
+        switch (cable_type) {
+        case HEADSET_MIC:
+                string = "HEADSET";
+                break;
+        case HEADSET_NO_MIC:
+                string = "HEADPHONES";
+                break;
+        default:
+                string = "NOTHING";
+                break;
+        }
+        snprintf(buf, sizeof(buf),
+                "%s:jack:plugged=1;CT;1,state_%s=1;CT;1:NR",
+                __func__, string);
+
+        log_to_metrics(ANDROID_LOG_INFO, "AudioJackEvent", buf);
+#endif
 
     wake_unlock(&accdet_irq_lock);
 }
@@ -1088,6 +1424,27 @@ static inline void accdet_init(void)
 }
 /*-----------------------------------sysfs-----------------------------------------*/
 #if DEBUG_THREAD
+#ifdef CONFIG_MTK_PMIC_MT6397
+int dump_register(void)
+{
+
+   int i=0;
+   for (i=0x0582; i<= 0x05A4; i+=2)
+   {
+     ACCDET_DEBUG(" ACCDET_BASE + %x=%x\n",i,pmic_pwrap_read(ACCDET_BASE + i));
+   }
+
+   ACCDET_DEBUG(" TOP_RST_ACCDET =%x\n",pmic_pwrap_read(TOP_RST_ACCDET));// reset register in 6397
+   ACCDET_DEBUG(" INT_CON_ACCDET =%x\n",pmic_pwrap_read(INT_CON_ACCDET));//INT register in 6397
+   ACCDET_DEBUG(" TOP_CKPDN =%x\n",pmic_pwrap_read(TOP_CKPDN));// clock register in 6397
+   ACCDET_DEBUG(" 0x0732 =%x\n",pmic_pwrap_read(0x0732));
+   ACCDET_DEBUG(" MULTIKEY_ADC_CHANNEL(%x) is %x\n",MULTIKEY_ADC_CHANNEL, PMIC_IMM_GetOneChannelValue(MULTIKEY_ADC_CHANNEL,1,1));
+  #ifdef ACCDET_PIN_SWAP
+   //ACCDET_DEBUG(" 0x00004000 =%x\n",pmic_pwrap_read(0x00004000));//VRF28 power for PIN swap feature
+  #endif
+   return 0;
+}
+#else
 static int dump_register(void)
 {
    int i=0;
@@ -1104,6 +1461,7 @@ static int dump_register(void)
   #endif
   return 0;
 }
+#endif
 
 static ssize_t accdet_store_call_state(struct device_driver *ddri, const char *buf, size_t count)
 {
@@ -1275,8 +1633,8 @@ int mt_accdet_probe(void)
 {
 	int ret = 0;
 #ifdef SW_WORK_AROUND_ACCDET_REMOTE_BUTTON_ISSUE
-     //struct task_struct *keyEvent_thread = NULL;
-	 //int error=0;
+     struct task_struct *keyEvent_thread = NULL;
+	 int error=0;
 #endif
 #if DEBUG_THREAD
 		 struct platform_driver accdet_driver_hal = accdet_driver_func();
@@ -1370,6 +1728,31 @@ int mt_accdet_probe(void)
     wake_lock_init(&accdet_irq_lock, WAKE_LOCK_SUSPEND, "accdet irq wakelock");
     wake_lock_init(&accdet_key_lock, WAKE_LOCK_SUSPEND, "accdet key wakelock");
 	wake_lock_init(&accdet_timer_lock, WAKE_LOCK_SUSPEND, "accdet timer wakelock");
+
+#if defined(EARPHONE_SWITCH)
+	get_board_voltage();
+
+	mt_set_gpio_mode(GPIO_HEADSET_SWITCH2, GPIO_MODE_00);
+	mt_set_gpio_pull_enable(GPIO_HEADSET_SWITCH2, GPIO_PULL_ENABLE);
+	mt_set_gpio_dir(GPIO_HEADSET_SWITCH2, GPIO_DIR_OUT);
+	mt_set_gpio_out(GPIO_HEADSET_SWITCH2, GPIO_OUT_ONE);
+
+	mt_set_gpio_mode(GPIO_HEADSET_SWITCH1, GPIO_MODE_00);
+	mt_set_gpio_pull_enable(GPIO_HEADSET_SWITCH1, GPIO_PULL_ENABLE);
+	mt_set_gpio_dir(GPIO_HEADSET_SWITCH1, GPIO_DIR_OUT);
+	mt_set_gpio_out(GPIO_HEADSET_SWITCH1, GPIO_OUT_ZERO);
+#endif
+#ifdef SW_WORK_AROUND_ACCDET_REMOTE_BUTTON_ISSUE
+     init_waitqueue_head(&send_event_wq);
+     //start send key event thread
+	 keyEvent_thread = kthread_run(sendKeyEvent, 0, "keyEvent_send");
+     if (IS_ERR(keyEvent_thread)) 
+	 { 
+        error = PTR_ERR(keyEvent_thread);
+        ACCDET_DEBUG( " failed to create kernel thread: %d\n", error);
+     }
+#endif
+	
 #if DEBUG_THREAD
  	 if((ret = accdet_create_attr(&accdet_driver_hal.driver))!=0)
 	 {
@@ -1391,7 +1774,9 @@ int mt_accdet_probe(void)
 		pmic_pwrap_write(ACCDET_RSV, ACCDET_1V9_MODE_OFF);
 		ACCDET_DEBUG("ACCDET use in 1.9V mode!! \n");
 		accdet_init();   
+#ifndef MTK_ALPS_BOX_SUPPORT  
 		queue_work(accdet_workqueue, &accdet_work); //schedule a work for the first detection					
+#endif
 		#ifdef ACCDET_EINT
 
           accdet_eint_workqueue = create_singlethread_workqueue("accdet_eint");

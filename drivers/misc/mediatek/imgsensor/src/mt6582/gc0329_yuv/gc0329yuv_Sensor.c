@@ -1,4 +1,39 @@
 /*****************************************************************************
+ *  Copyright Statement:
+ *  --------------------
+ *  This software is protected by Copyright and the information contained
+ *  herein is confidential. The software may not be copied and the information
+ *  contained herein may not be used or disclosed except with the written
+ *  permission of MediaTek Inc. (C) 2005
+ *
+ *  BY OPENING THIS FILE, BUYER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
+ *  THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
+ *  RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO BUYER ON
+ *  AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
+ *  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+ *  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
+ *  NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
+ *  SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
+ *  SUPPLIED WITH THE MEDIATEK SOFTWARE, AND BUYER AGREES TO LOOK ONLY TO SUCH
+ *  THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. MEDIATEK SHALL ALSO
+ *  NOT BE RESPONSIBLE FOR ANY MEDIATEK SOFTWARE RELEASES MADE TO BUYER'S
+ *  SPECIFICATION OR TO CONFORM TO A PARTICULAR STANDARD OR OPEN FORUM.
+ *
+ *  BUYER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND CUMULATIVE
+ *  LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
+ *  AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
+ *  OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY BUYER TO
+ *  MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+ *
+ *  THE TRANSACTION CONTEMPLATED HEREUNDER SHALL BE CONSTRUED IN ACCORDANCE
+ *  WITH THE LAWS OF THE STATE OF CALIFORNIA, USA, EXCLUDING ITS CONFLICT OF
+ *  LAWS PRINCIPLES.  ANY DISPUTES, CONTROVERSIES OR CLAIMS ARISING THEREOF AND
+ *  RELATED THERETO SHALL BE SETTLED BY ARBITRATION IN SAN FRANCISCO, CA, UNDER
+ *  THE RULES OF THE INTERNATIONAL CHAMBER OF COMMERCE (ICC).
+ *
+ *****************************************************************************/
+
+/*****************************************************************************
  *
  * Filename:
  * ---------
@@ -55,21 +90,9 @@
 #define SENSORDB(x,...)
 #endif
 
-typedef struct
-{
-  UINT16  iSensorVersion;
-  UINT16  iNightMode;
-  UINT16  iWB;
-  UINT16  iEffect;
-  UINT16  iEV;
-  UINT16  iBanding;
-  UINT16  iMirror;
-  UINT16  iFrameRate;
-  //0    :No-Fix FrameRate 
-  //other:Fixed FrameRate
-} Gc0329Status;
-Gc0329Status Gc0329CurrentStatus;
-static DEFINE_SPINLOCK(Gc0329_drv_lock);
+//add by zym
+#define GC0329_TEST_PATTERN_CHECKSUM (0xac239f99)
+
 extern int iReadRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u8 * a_pRecvData, u16 a_sizeRecvData, u16 i2cId);
 extern int iWriteRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u16 i2cId);
 
@@ -84,7 +107,7 @@ kal_uint16 GC0329_read_cmos_sensor(kal_uint8 addr)
 {
 	kal_uint16 get_byte=0;
     char puSendCmd = { (char)(addr & 0xFF) };
-	iReadRegI2C(&puSendCmd , 1, (u8*)&get_byte, 1, GC0329_READ_ID);
+	iReadRegI2C(&puSendCmd , 1, (u8*)&get_byte, 1, GC0329_WRITE_ID);
 	
     return get_byte;
 }
@@ -246,32 +269,6 @@ static void GC0329_awb_enable(kal_bool enalbe)
 }
 
 
-static void Gc0329InitialPara(void)
-{
-  /*Initial status setting 
-  Can be better by sync with MT9V114InitialSetting*/
-  spin_lock(&Gc0329_drv_lock);
-  Gc0329CurrentStatus.iNightMode = 0xFFFF;
-  Gc0329CurrentStatus.iWB = AWB_MODE_AUTO;
-  Gc0329CurrentStatus.iEffect = MEFFECT_OFF;
-  Gc0329CurrentStatus.iBanding = AE_FLICKER_MODE_50HZ;
-  Gc0329CurrentStatus.iEV = AE_EV_COMP_n03;
-  Gc0329CurrentStatus.iMirror = IMAGE_NORMAL;
-  Gc0329CurrentStatus.iFrameRate = 0;//No Fix FrameRate
-  spin_unlock(&Gc0329_drv_lock);
-}
-
-
-void Gc0329GetExifInfo(UINT32 exifAddr)
-{
-    SENSOR_EXIF_INFO_STRUCT* pExifInfo = (SENSOR_EXIF_INFO_STRUCT*)exifAddr;
-    pExifInfo->FNumber = 28;
-    pExifInfo->AEISOSpeed = AE_ISO_100;
-    pExifInfo->AWBMode = Gc0329CurrentStatus.iWB;
-    pExifInfo->CapExposureTime = 0;
-    pExifInfo->FlashLightTimeus = 0;
-    pExifInfo->RealISOValue = AE_ISO_100;
-}
 /*************************************************************************
  * FUNCTION
  *	GC0329_config_window
@@ -342,7 +339,7 @@ void GC0329GammaSelect(kal_uint32 GammaLvl)
 	switch(GammaLvl)
 	{
 		case GC0329_RGB_Gamma_m1:						//smallest gamma curve
-			GC0329_write_cmos_sensor(0xfe, 0x00);
+	/*		GC0329_write_cmos_sensor(0xfe, 0x00);
 			GC0329_write_cmos_sensor(0xbf, 0x06);
 			GC0329_write_cmos_sensor(0xc0, 0x12);
 			GC0329_write_cmos_sensor(0xc1, 0x22);
@@ -360,6 +357,25 @@ void GC0329GammaSelect(kal_uint32 GammaLvl)
 			GC0329_write_cmos_sensor(0xcd, 0xf1);
 			GC0329_write_cmos_sensor(0xce, 0xf8);
 			GC0329_write_cmos_sensor(0xcf, 0xfd);
+*/
+		GC0329_write_cmos_sensor(0xfe ,0x00);
+		GC0329_write_cmos_sensor(0xbf ,0x08);//0b
+		GC0329_write_cmos_sensor(0xc0 ,0x16);//1d
+		GC0329_write_cmos_sensor(0xc1 ,0x2f);//33
+		GC0329_write_cmos_sensor(0xc2 ,0x49);
+		GC0329_write_cmos_sensor(0xc3 ,0x5d);
+		GC0329_write_cmos_sensor(0xc4 ,0x6e);
+		GC0329_write_cmos_sensor(0xc5 ,0x7c);
+		GC0329_write_cmos_sensor(0xc6 ,0x99);
+		GC0329_write_cmos_sensor(0xc7 ,0xaf);
+		GC0329_write_cmos_sensor(0xc8 ,0xc2);
+		GC0329_write_cmos_sensor(0xc9 ,0xd0);
+		GC0329_write_cmos_sensor(0xca ,0xda);
+		GC0329_write_cmos_sensor(0xcb ,0xe2);
+		GC0329_write_cmos_sensor(0xcc ,0xe7);
+		GC0329_write_cmos_sensor(0xcd ,0xf0);
+		GC0329_write_cmos_sensor(0xce ,0xf7);
+		GC0329_write_cmos_sensor(0xcf ,0xff);
 			break;
 		case GC0329_RGB_Gamma_m2:
 			GC0329_write_cmos_sensor(0xBF, 0x08);
@@ -526,22 +542,29 @@ void GC0329NightMode(kal_bool bEnable)
 	{	
 		GC0329_write_cmos_sensor(0xfe, 0x01);
 		if(GC0329_MPEG4_encode_mode == KAL_TRUE)
-			GC0329_write_cmos_sensor(0x33, 0x00);
+			GC0329_write_cmos_sensor(0x33, 0x30);
 		else
 			GC0329_write_cmos_sensor(0x33, 0x30);
+		
 		GC0329_write_cmos_sensor(0xfe, 0x00);
-		GC0329GammaSelect(GC0329_RGB_Gamma_night);
+		GC0329GammaSelect(GC0329_RGB_Gamma_m6);
+		GC0329_write_cmos_sensor(0xfe, 0x00);
+		GC0329_write_cmos_sensor(0xd5, 0x10);
+	
 		GC0329_NIGHT_MODE = KAL_TRUE;
 	}
 	else 
 	{
 		GC0329_write_cmos_sensor(0xfe, 0x01);
 		if(GC0329_MPEG4_encode_mode == KAL_TRUE)
-			GC0329_write_cmos_sensor(0x33, 0x00);
+			GC0329_write_cmos_sensor(0x33, 0x20);
 		else
 			GC0329_write_cmos_sensor(0x33, 0x20);
 		GC0329_write_cmos_sensor(0xfe, 0x00);
-		GC0329GammaSelect(GC0329_RGB_Gamma_m6);
+		GC0329GammaSelect(GC0329_RGB_Gamma_m1); // 4 
+		GC0329_write_cmos_sensor(0xfe, 0x00);
+		GC0329_write_cmos_sensor(0xd5, 0xf8);
+
 		GC0329_NIGHT_MODE = KAL_FALSE;
 	}
 } /* GC0329_NightMode */
@@ -562,298 +585,298 @@ void GC0329NightMode(kal_bool bEnable)
 *************************************************************************/
 void GC0329_Sensor_Init(void)
 {
-	GC0329_write_cmos_sensor(0xfe, 0x80);
-	GC0329_write_cmos_sensor(0xfe, 0x80);
-	GC0329_write_cmos_sensor(0xfc, 0x16);
-	GC0329_write_cmos_sensor(0xfc, 0x16);
-	GC0329_write_cmos_sensor(0xfc, 0x16);
-	GC0329_write_cmos_sensor(0xfc, 0x16);
-	GC0329_SET_PAGE0;
-	GC0329_write_cmos_sensor(0xf0, 0x07);
-	GC0329_write_cmos_sensor(0xf1, 0x01);
-
-	GC0329_write_cmos_sensor(0x73, 0x90);
-	GC0329_write_cmos_sensor(0x74, 0x80);
-	GC0329_write_cmos_sensor(0x75, 0x80);
-	GC0329_write_cmos_sensor(0x76, 0x94);
-
-	GC0329_write_cmos_sensor(0x42, 0x00);
-	GC0329_write_cmos_sensor(0x77, 0x57);
-	GC0329_write_cmos_sensor(0x78, 0x4d);
-	GC0329_write_cmos_sensor(0x79, 0x45);
-	//GC0329_write_cmos_sensor(0x42, 0xfc);
-
-	////////////////////analog////////////////////
-	GC0329_write_cmos_sensor(0x0a, 0x02);
-	GC0329_write_cmos_sensor(0x0c, 0x02);
-	GC0329_write_cmos_sensor(0x17, 0x14); // 16   lanking 20120423  mirror setting
-	GC0329_write_cmos_sensor(0x19, 0x05);
-	GC0329_write_cmos_sensor(0x1b, 0x24);
-	GC0329_write_cmos_sensor(0x1c, 0x04);
-	GC0329_write_cmos_sensor(0x1e, 0x08);
-	GC0329_write_cmos_sensor(0x1f, 0x08); // c0  20120720//c8
-	GC0329_write_cmos_sensor(0x20, 0x00);
-	GC0329_write_cmos_sensor(0x21, 0x48);
-	GC0329_write_cmos_sensor(0x22, 0xba); //  ba  20120720
-	GC0329_write_cmos_sensor(0x23, 0x22);
-	GC0329_write_cmos_sensor(0x24, 0x16);
-
-	////////////////////blk////////////////////
-	GC0329_write_cmos_sensor(0x26, 0xf7); 
-	GC0329_write_cmos_sensor(0x28, 0x7f); 
-	GC0329_write_cmos_sensor(0x29, 0x00); 
-	GC0329_write_cmos_sensor(0x32, 0x04);
-	GC0329_write_cmos_sensor(0x33, 0x20);
-	GC0329_write_cmos_sensor(0x34, 0x20);
-	GC0329_write_cmos_sensor(0x35, 0x20);
-	GC0329_write_cmos_sensor(0x36, 0x20);
-
-	////////////////////ISP BLOCK ENABL////////////////////
-	GC0329_write_cmos_sensor(0x40, 0xff);
-	GC0329_write_cmos_sensor(0x41, 0x44);
-	GC0329_write_cmos_sensor(0x42, 0x7e);
-	GC0329_write_cmos_sensor(0x44, 0xa0);
-	GC0329_write_cmos_sensor(0x46, 0x02);
-	GC0329_write_cmos_sensor(0x4b, 0xca);
-	GC0329_write_cmos_sensor(0x4d, 0x01);
-	GC0329_write_cmos_sensor(0x4f, 0x01);
-	GC0329_write_cmos_sensor(0x70, 0x48);
-
-	//GC0329_write_cmos_sensor(0xb0, 0x00);
-	//GC0329_write_cmos_sensor(0xbc, 0x00);
-	//GC0329_write_cmos_sensor(0xbd, 0x00);
-	//GC0329_write_cmos_sensor(0xbe, 0x00);
-	////////////////////DNDD////////////////////
-	GC0329_write_cmos_sensor(0x80, 0xe7); 
-	GC0329_write_cmos_sensor(0x82, 0x5f); //55
-	GC0329_write_cmos_sensor(0x83, 0x02);  // add by lanking 20120423
-	GC0329_write_cmos_sensor(0x87, 0x4a);
-
-	////////////////////INTPEE////////////////////
-	GC0329_write_cmos_sensor(0x95, 0x43);//54
-	GC0329_write_cmos_sensor(0xd3, 0x38);
-	GC0329_write_cmos_sensor(0x3b, 0x04);
-	GC0329_write_cmos_sensor(0x3c, 0x04);
-	GC0329_write_cmos_sensor(0x3d, 0x04);
-	GC0329_write_cmos_sensor(0x3e, 0x04);
+	GC0329_write_cmos_sensor(0xfe ,0x80);
+	GC0329_write_cmos_sensor(0xfc ,0x12);
+	GC0329_write_cmos_sensor(0xfc ,0x12);
+	GC0329_write_cmos_sensor(0xfe ,0x00);
+	GC0329_write_cmos_sensor(0x70 ,0x48);
+	GC0329_write_cmos_sensor(0x73 ,0x90);
+	GC0329_write_cmos_sensor(0x74 ,0x80);
+	GC0329_write_cmos_sensor(0x75 ,0x80);
+	GC0329_write_cmos_sensor(0x76 ,0x84);
+	GC0329_write_cmos_sensor(0x77 ,0x62);
+	GC0329_write_cmos_sensor(0x78 ,0x47);
+	GC0329_write_cmos_sensor(0x79 ,0x40);
+		////////////////////analog////////////////////
 	
-
-	////////////////////ASDE////////////////////
-	//GC0329_SET_PAGE1;
-	//GC0329_write_cmos_sensor(0x18, 0x22);
-	//GC0329_SET_PAGE0;
-	//GC0329_write_cmos_sensor(0x9c, 0x0a);
-	//GC0329_write_cmos_sensor(0xa0, 0xaf);
-	//GC0329_write_cmos_sensor(0xa2, 0xff);
-	//GC0329_write_cmos_sensor(0xa4, 0x50);
-	//GC0329_write_cmos_sensor(0xa5, 0x21);
-	//GC0329_write_cmos_sensor(0xa7, 0x35);
-
-	////////////////////RGB gamma////////////////////
-	//RGB gamma m4'
-			GC0329_write_cmos_sensor(0xBF, 0x14);
-			GC0329_write_cmos_sensor(0xc0, 0x28);
-			GC0329_write_cmos_sensor(0xc1, 0x44);
-			GC0329_write_cmos_sensor(0xc2, 0x5D);
-			GC0329_write_cmos_sensor(0xc3, 0x72);
-			GC0329_write_cmos_sensor(0xc4, 0x86);
-			GC0329_write_cmos_sensor(0xc5, 0x95);
-			GC0329_write_cmos_sensor(0xc6, 0xB1);
-			GC0329_write_cmos_sensor(0xc7, 0xC6);
-			GC0329_write_cmos_sensor(0xc8, 0xD5);
-			GC0329_write_cmos_sensor(0xc9, 0xE1);
-			GC0329_write_cmos_sensor(0xcA, 0xEA);
-			GC0329_write_cmos_sensor(0xcB, 0xF1);
-			GC0329_write_cmos_sensor(0xcC, 0xF5);
-			GC0329_write_cmos_sensor(0xcD, 0xFB);
-			GC0329_write_cmos_sensor(0xcE, 0xFE);
-	GC0329_write_cmos_sensor(0xcF, 0xFF);
-
-	//////////////////CC///////////////////
-	GC0329_SET_PAGE0;
-
-	GC0329_write_cmos_sensor(0xb3, 0x44);
-	GC0329_write_cmos_sensor(0xb4, 0xfd);
-	GC0329_write_cmos_sensor(0xb5, 0x02);
-	GC0329_write_cmos_sensor(0xb6, 0xfa);
-	GC0329_write_cmos_sensor(0xb7, 0x48);
-	GC0329_write_cmos_sensor(0xb8, 0xf0);
-
-	// crop 						   
-	GC0329_write_cmos_sensor(0x50, 0x01);
-
-	////////////////////YCP////////////////////
-	GC0329_SET_PAGE0;
-	GC0329_write_cmos_sensor(0xd1, 0x30);
-	GC0329_write_cmos_sensor(0xd2, 0x30);
-	GC0329_write_cmos_sensor(0xdd, 0x54);
-
-	////////////////////AEC////////////////////
-	GC0329_SET_PAGE1;
-	GC0329_write_cmos_sensor(0x10, 0x40);
-	GC0329_write_cmos_sensor(0x11, 0x21);
-	GC0329_write_cmos_sensor(0x12, 0x07);
-	GC0329_write_cmos_sensor(0x13, 0x50);
-	GC0329_write_cmos_sensor(0x17, 0x88);
-	GC0329_write_cmos_sensor(0x21, 0xb0);
-	GC0329_write_cmos_sensor(0x22, 0x48);
-	GC0329_write_cmos_sensor(0x3c, 0x95);
-	GC0329_write_cmos_sensor(0x3d, 0x50);
-	GC0329_write_cmos_sensor(0x3e, 0x48); 
-
-
-			GC0329_SET_PAGE0;
-			GC0329_write_cmos_sensor(0x05, 0x01); 	
-			GC0329_write_cmos_sensor(0x06, 0x32); 
-			GC0329_write_cmos_sensor(0x07, 0x00);
-			GC0329_write_cmos_sensor(0x08, 0x70);
-			
-			GC0329_SET_PAGE1;
-			GC0329_write_cmos_sensor(0x29, 0x00);   //anti-flicker step [11:8]
-			GC0329_write_cmos_sensor(0x2a, 0x3c);   //anti-flicker step [7:0]
-			
-			GC0329_write_cmos_sensor(0x2b, 0x02);   //exp level 0  14.28fps
-			GC0329_write_cmos_sensor(0x2c, 0x58); 
-			GC0329_write_cmos_sensor(0x2d, 0x02);   //exp level 1  12.50fps
-			GC0329_write_cmos_sensor(0x2e, 0xd0); 
-			GC0329_write_cmos_sensor(0x2f, 0x03);   //exp level 2  10.00fps
-			GC0329_write_cmos_sensor(0x30, 0xc0); 
-			GC0329_write_cmos_sensor(0x31, 0x04);   //exp level 3  7.14fps
-			GC0329_write_cmos_sensor(0x32, 0xb0); 
-			GC0329_SET_PAGE0;
-
-	////////////////////AWB////////////////////
-	GC0329_SET_PAGE1;
-	GC0329_write_cmos_sensor(0x06, 0x16);
-	GC0329_write_cmos_sensor(0x07, 0x06);
-	GC0329_write_cmos_sensor(0x08, 0x98);
-	GC0329_write_cmos_sensor(0x09, 0xee);
-	GC0329_write_cmos_sensor(0x50, 0xfc);
-	GC0329_write_cmos_sensor(0x51, 0x18);//20
-	GC0329_write_cmos_sensor(0x52, 0x0b);
-	GC0329_write_cmos_sensor(0x53, 0x1d);//20
-	GC0329_write_cmos_sensor(0x54, 0x35);//40
-	GC0329_write_cmos_sensor(0x55, 0x10);
-	GC0329_write_cmos_sensor(0x56, 0x20);
-	//GC0329_write_cmos_sensor(0x57, 0x40);
-	GC0329_write_cmos_sensor(0x58, 0xa0);
-	GC0329_write_cmos_sensor(0x59, 0x28);
-	GC0329_write_cmos_sensor(0x5a, 0x02);
-	GC0329_write_cmos_sensor(0x5b, 0x63);
-	GC0329_write_cmos_sensor(0x5c, 0x34);
-	GC0329_write_cmos_sensor(0x5d, 0x73);
-	GC0329_write_cmos_sensor(0x5e, 0x11);
-	GC0329_write_cmos_sensor(0x5f, 0x40);
-	GC0329_write_cmos_sensor(0x60, 0x40);
-	GC0329_write_cmos_sensor(0x61, 0xc8);
-	GC0329_write_cmos_sensor(0x62, 0xa0);
-	GC0329_write_cmos_sensor(0x63, 0x40);
-	GC0329_write_cmos_sensor(0x64, 0x50);
-	GC0329_write_cmos_sensor(0x65, 0x98);
-	GC0329_write_cmos_sensor(0x66, 0xfa);
-	GC0329_write_cmos_sensor(0x67, 0x70);
-	GC0329_write_cmos_sensor(0x68, 0x58);
-	GC0329_write_cmos_sensor(0x69, 0x85);
-	GC0329_write_cmos_sensor(0x6a, 0x40);
-	GC0329_write_cmos_sensor(0x6b, 0x39);
-	GC0329_write_cmos_sensor(0x6c, 0x18);
-	GC0329_write_cmos_sensor(0x6d, 0x28);
-	GC0329_write_cmos_sensor(0x6e, 0x41);
-	GC0329_write_cmos_sensor(0x70, 0x02);
-	GC0329_write_cmos_sensor(0x71, 0x00);
-	GC0329_write_cmos_sensor(0x72, 0x10);
-	GC0329_write_cmos_sensor(0x73, 0x40);
-
-	//GC0329_write_cmos_sensor(0x74, 0x32);
-	//GC0329_write_cmos_sensor(0x75, 0x40);
-	//GC0329_write_cmos_sensor(0x76, 0x30);
-	//GC0329_write_cmos_sensor(0x77, 0x48);
-	//GC0329_write_cmos_sensor(0x7a, 0x50);
-	//GC0329_write_cmos_sensor(0x7b, 0x20); 
-
-	GC0329_write_cmos_sensor(0x80, 0x60);
-	GC0329_write_cmos_sensor(0x81, 0x50);
-	GC0329_write_cmos_sensor(0x82, 0x42);
-	GC0329_write_cmos_sensor(0x83, 0x40);
-	GC0329_write_cmos_sensor(0x84, 0x40);
-	GC0329_write_cmos_sensor(0x85, 0x40);
-
-	GC0329_write_cmos_sensor(0x74, 0x40);
-	GC0329_write_cmos_sensor(0x75, 0x58);
-	GC0329_write_cmos_sensor(0x76, 0x24);
-	GC0329_write_cmos_sensor(0x77, 0x40);
-	GC0329_write_cmos_sensor(0x78, 0x20);
-	GC0329_write_cmos_sensor(0x79, 0x60);
-	GC0329_write_cmos_sensor(0x7a, 0x58);
-	GC0329_write_cmos_sensor(0x7b, 0x20);
-	GC0329_write_cmos_sensor(0x7c, 0x30);
-	GC0329_write_cmos_sensor(0x7d, 0x35);
-	GC0329_write_cmos_sensor(0x7e, 0x10);
-	GC0329_write_cmos_sensor(0x7f, 0x08);
-
-	////////////////////ABS////////////////////
-	GC0329_write_cmos_sensor(0x9c, 0x02); 
-	GC0329_write_cmos_sensor(0x9d, 0x20);
-	//GC0329_write_cmos_sensor(0x9f, 0x40);	
-
-	////////////////////CC-AWB////////////////////
-	GC0329_write_cmos_sensor(0xd0, 0x00);
-	GC0329_write_cmos_sensor(0xd2, 0x2c);
-	GC0329_write_cmos_sensor(0xd3, 0x80); 
-
+	GC0329_write_cmos_sensor(0x03 ,0x00);
+	GC0329_write_cmos_sensor(0x04 ,0x02);
+	GC0329_write_cmos_sensor(0xfc ,0x16);
+	GC0329_write_cmos_sensor(0x09 ,0x00);
+	GC0329_write_cmos_sensor(0x0a ,0x02);
+	GC0329_write_cmos_sensor(0x0b ,0x00);
+	GC0329_write_cmos_sensor(0x0c ,0x02);
+	GC0329_write_cmos_sensor(0x17 ,0x14);//0x17 
+	GC0329_write_cmos_sensor(0x19 ,0x05);
+	GC0329_write_cmos_sensor(0x1b ,0x24);
+	GC0329_write_cmos_sensor(0x1c ,0x04);
+	GC0329_write_cmos_sensor(0x1e ,0x08);
+	GC0329_write_cmos_sensor(0x1f ,0x08);
+	GC0329_write_cmos_sensor(0x20 ,0x00);
+	GC0329_write_cmos_sensor(0x21 ,0x48);
+	GC0329_write_cmos_sensor(0x22 ,0xba);
+	GC0329_write_cmos_sensor(0x23 ,0x22);
+	GC0329_write_cmos_sensor(0x24 ,0x16);
+		////////////////////blk////////////////////
+	GC0329_write_cmos_sensor(0x26 ,0xf7);
+	GC0329_write_cmos_sensor(0x28 ,0x7f);
+	GC0329_write_cmos_sensor(0x29 ,0x00);
+	GC0329_write_cmos_sensor(0x32 ,0x00);
+	GC0329_write_cmos_sensor(0x33 ,0x20);
+	GC0329_write_cmos_sensor(0x34 ,0x20);
+	GC0329_write_cmos_sensor(0x35 ,0x20);
+	GC0329_write_cmos_sensor(0x36 ,0x20);
+	GC0329_write_cmos_sensor(0x3b ,0x04);
+	GC0329_write_cmos_sensor(0x3c ,0x04);
+	GC0329_write_cmos_sensor(0x3d ,0x04);
+	GC0329_write_cmos_sensor(0x3e ,0x04);
+		////////////////////ISP BLOCK ENABL////////////////////
+	GC0329_write_cmos_sensor(0x40 ,0xff);
+	GC0329_write_cmos_sensor(0x41 ,0x24);
+	GC0329_write_cmos_sensor(0x42 ,0xfa);
+	GC0329_write_cmos_sensor(0x46 ,0x02);
+	GC0329_write_cmos_sensor(0x4b ,0xca);
+	GC0329_write_cmos_sensor(0x4d ,0x01);
+	GC0329_write_cmos_sensor(0x4f ,0x01);
+	GC0329_write_cmos_sensor(0x70 ,0x48);
+		////////////////////DNDD////////////////////
+	GC0329_write_cmos_sensor(0x80 ,0xe7);
+	
+	GC0329_write_cmos_sensor(0x82 ,0x90);
+	GC0329_write_cmos_sensor(0x83 ,0x05);
+	GC0329_write_cmos_sensor(0x87 ,0x4a);
+	GC0329_write_cmos_sensor(0x90 ,0x8c);
+		////////////////////INTPEE////////////////////
+	GC0329_write_cmos_sensor(0x92 ,0x05);
+	GC0329_write_cmos_sensor(0x94 ,0x05);
+	GC0329_write_cmos_sensor(0x95 ,0x67);
+	GC0329_write_cmos_sensor(0x96 ,0x88);
+		////////////////////ASDE////////////////////
+	
+	GC0329_write_cmos_sensor(0xfe ,0x01);
+	GC0329_write_cmos_sensor(0x18 ,0x22);
+	GC0329_write_cmos_sensor(0xfe ,0x00);
+	GC0329_write_cmos_sensor(0x9c ,0x0a);
+	GC0329_write_cmos_sensor(0xa0 ,0xaf);
+	GC0329_write_cmos_sensor(0xa2 ,0xff);
+	GC0329_write_cmos_sensor(0xa4 ,0x30);
+	GC0329_write_cmos_sensor(0xa5 ,0x31);
+	GC0329_write_cmos_sensor(0xa7 ,0x35);
+		////////////////////RGB gamma////////////////////
+	GC0329_write_cmos_sensor(0xfe ,0x00);
+	GC0329_write_cmos_sensor(0xbf ,0x08);//0b
+	GC0329_write_cmos_sensor(0xc0 ,0x16);//1d
+	GC0329_write_cmos_sensor(0xc1 ,0x2f);//33
+	GC0329_write_cmos_sensor(0xc2 ,0x49);
+	GC0329_write_cmos_sensor(0xc3 ,0x5d);
+	GC0329_write_cmos_sensor(0xc4 ,0x6e);
+	GC0329_write_cmos_sensor(0xc5 ,0x7c);
+	GC0329_write_cmos_sensor(0xc6 ,0x99);
+	GC0329_write_cmos_sensor(0xc7 ,0xaf);
+	GC0329_write_cmos_sensor(0xc8 ,0xc2);
+	GC0329_write_cmos_sensor(0xc9 ,0xd0);
+	GC0329_write_cmos_sensor(0xca ,0xda);
+	GC0329_write_cmos_sensor(0xcb ,0xe2);
+	GC0329_write_cmos_sensor(0xcc ,0xe7);
+	GC0329_write_cmos_sensor(0xcd ,0xf0);
+	GC0329_write_cmos_sensor(0xce ,0xf7);
+	GC0329_write_cmos_sensor(0xcf ,0xff);
+	GC0329_write_cmos_sensor(0xfe ,0x00);
+	GC0329_write_cmos_sensor(0x63 ,0x00);
+	GC0329_write_cmos_sensor(0x64 ,0x06);
+	GC0329_write_cmos_sensor(0x65 ,0x0d);
+	GC0329_write_cmos_sensor(0x66 ,0x1b);
+	GC0329_write_cmos_sensor(0x67 ,0x2b);
+	GC0329_write_cmos_sensor(0x68 ,0x3d);
+	GC0329_write_cmos_sensor(0x69 ,0x50);
+	GC0329_write_cmos_sensor(0x6a ,0x60);
+	GC0329_write_cmos_sensor(0x6b ,0x80);
+	GC0329_write_cmos_sensor(0x6c ,0xa0);
+	GC0329_write_cmos_sensor(0x6d ,0xc0);
+	GC0329_write_cmos_sensor(0x6e ,0xe0);
+	GC0329_write_cmos_sensor(0x6f ,0xff);
+	
+		//////////////////CC///////////////////
+	GC0329_write_cmos_sensor(0xfe ,0x00);
+	GC0329_write_cmos_sensor(0xb3 ,0x40);
+	GC0329_write_cmos_sensor(0xb4 ,0xfe);
+	GC0329_write_cmos_sensor(0xb5 ,0x04); //02    11.28
+	GC0329_write_cmos_sensor(0xb6 ,0xf0);
+	GC0329_write_cmos_sensor(0xb7 ,0x42);
+	GC0329_write_cmos_sensor(0xb8 ,0xe8);
+		// crop 						   
+	GC0329_write_cmos_sensor(0x50 ,0x01);
+	GC0329_write_cmos_sensor(0x19 ,0x05);
+	GC0329_write_cmos_sensor(0x20 ,0x01);
+	GC0329_write_cmos_sensor(0x22 ,0xba);
+	GC0329_write_cmos_sensor(0x21 ,0x48);
+		////////////////////YCP////////////////////
+	GC0329_write_cmos_sensor(0xfe ,0x00);
+	GC0329_write_cmos_sensor(0xd0 ,0x40);
+	GC0329_write_cmos_sensor(0xd1 ,0x34);//30/ 28  keguan 32
+	GC0329_write_cmos_sensor(0xd2 ,0x34);//30/28         11.28
+	GC0329_write_cmos_sensor(0xd3 ,0x3c);
+	GC0329_write_cmos_sensor(0xd5 ,0x00);
+	GC0329_write_cmos_sensor(0xdd ,0x14);
+	
+	GC0329_write_cmos_sensor(0x7a,0x80); //ratio
+	GC0329_write_cmos_sensor(0x7b,0x82); 
+	GC0329_write_cmos_sensor(0x7c,0x82); 
+	
+	
+		////////////////////AEC////////////////////
+	GC0329_write_cmos_sensor(0xfe ,0x01);
+	GC0329_write_cmos_sensor(0x10 ,0x40);
+	GC0329_write_cmos_sensor(0x11 ,0x21);
+	GC0329_write_cmos_sensor(0x12 ,0x43);//13
+	GC0329_write_cmos_sensor(0x13 ,0x6a);
+	GC0329_write_cmos_sensor(0x17 ,0xa8);
+	GC0329_write_cmos_sensor(0x1a ,0x21);
+	GC0329_write_cmos_sensor(0x20 ,0x31);
+	GC0329_write_cmos_sensor(0x21 ,0xc0);
+	GC0329_write_cmos_sensor(0x22 ,0x60);
+	GC0329_write_cmos_sensor(0x3c ,0x50);
+	GC0329_write_cmos_sensor(0x3d ,0x80);//40AEC_outdoor_slop
+	GC0329_write_cmos_sensor(0x3e ,0x30);//70/67AEC_outdoor_lowlimit   //summer   12.11   39 tao 7.8
+	
+		////////////////////AWB////////////////////
+	GC0329_write_cmos_sensor(0xfe ,0x01);
+	GC0329_write_cmos_sensor(0x06 ,0x16);
+	GC0329_write_cmos_sensor(0x07 ,0x06);
+	GC0329_write_cmos_sensor(0x08 ,0x98);
+	GC0329_write_cmos_sensor(0x09 ,0xee);
+	GC0329_write_cmos_sensor(0x50 ,0xfc);
+	GC0329_write_cmos_sensor(0x51 ,0x10);//20 //20131225
+	GC0329_write_cmos_sensor(0x52 ,0x10); // 0b
+	GC0329_write_cmos_sensor(0x53 ,0x10); // 10
+	GC0329_write_cmos_sensor(0x54 ,0x30); // 30
+	GC0329_write_cmos_sensor(0x55 ,0x10);
+	GC0329_write_cmos_sensor(0x56 ,0x20);
+	GC0329_write_cmos_sensor(0x58 ,0xa0);
+	GC0329_write_cmos_sensor(0x59 ,0x28);
+	GC0329_write_cmos_sensor(0x5a ,0x02);
+	GC0329_write_cmos_sensor(0x5b ,0x63);
+	GC0329_write_cmos_sensor(0x5c ,0x04);//34 //00
+	GC0329_write_cmos_sensor(0x5d ,0x73);
+	GC0329_write_cmos_sensor(0x5e ,0x10); //10   open temperature curve      summer   11.28
+	GC0329_write_cmos_sensor(0x5f ,0x40);
+	GC0329_write_cmos_sensor(0x60 ,0x40);
+	GC0329_write_cmos_sensor(0x61 ,0xc8);
+	GC0329_write_cmos_sensor(0x62 ,0xa0);
+	GC0329_write_cmos_sensor(0x63 ,0x40);
+	GC0329_write_cmos_sensor(0x64 ,0x50);
+	GC0329_write_cmos_sensor(0x65 ,0x98);
+	GC0329_write_cmos_sensor(0x66 ,0xfa);
+	GC0329_write_cmos_sensor(0x67 ,0x70);
+	GC0329_write_cmos_sensor(0x68 ,0x68);
+	GC0329_write_cmos_sensor(0x69 ,0xb5);
+	GC0329_write_cmos_sensor(0x6a ,0x40);
+	GC0329_write_cmos_sensor(0x6b ,0x39);
+	GC0329_write_cmos_sensor(0x6c ,0x30);//   18
+	GC0329_write_cmos_sensor(0x6d ,0x60);// 28
+	GC0329_write_cmos_sensor(0x6e ,0x41);
+	GC0329_write_cmos_sensor(0x70 ,0x02);
+	GC0329_write_cmos_sensor(0x71 ,0x00);
+	GC0329_write_cmos_sensor(0x72 ,0x10);
+	GC0329_write_cmos_sensor(0x73 ,0x40);
+	GC0329_write_cmos_sensor(0x80 ,0x60);
+	GC0329_write_cmos_sensor(0x81 ,0x50);
+	GC0329_write_cmos_sensor(0x82 ,0x42);
+	GC0329_write_cmos_sensor(0x83 ,0x40);
+	GC0329_write_cmos_sensor(0x84 ,0x40);
+	GC0329_write_cmos_sensor(0x85 ,0x40);
+	GC0329_write_cmos_sensor(0x74 ,0x40);
+	GC0329_write_cmos_sensor(0x75 ,0x58);
+	GC0329_write_cmos_sensor(0x76 ,0x24);
+	GC0329_write_cmos_sensor(0x77 ,0x40);
+	GC0329_write_cmos_sensor(0x78 ,0x20);
+	GC0329_write_cmos_sensor(0x79 ,0x60);
+	GC0329_write_cmos_sensor(0x7a ,0x58);
+	GC0329_write_cmos_sensor(0x7b ,0x20);
+	GC0329_write_cmos_sensor(0x7c ,0x30);
+	GC0329_write_cmos_sensor(0x7d ,0x35);
+	GC0329_write_cmos_sensor(0x7e ,0x10);
+	GC0329_write_cmos_sensor(0x7f ,0x08);
+		////////////////////ABS////////////////////
+	GC0329_write_cmos_sensor(0x9c ,0x00);
+	GC0329_write_cmos_sensor(0x9e ,0xc0);
+	GC0329_write_cmos_sensor(0x9f ,0x40);
+		////////////////////CC-AWB////////////////////
+	GC0329_write_cmos_sensor(0xd0 ,0x00);
+	GC0329_write_cmos_sensor(0xd2 ,0x2c);
+	GC0329_write_cmos_sensor(0xd3 ,0x80);
 	////////////////////LSC///////////////////
-	GC0329_SET_PAGE1;
-	GC0329_write_cmos_sensor(0xa0, 0x00);
-	GC0329_write_cmos_sensor(0xa1, 0x3c);
-	GC0329_write_cmos_sensor(0xa2, 0x50);
-	GC0329_write_cmos_sensor(0xa3, 0x00);
-	GC0329_write_cmos_sensor(0xa8, 0x0f);
-	GC0329_write_cmos_sensor(0xa9, 0x08);
-	GC0329_write_cmos_sensor(0xaa, 0x00);
-	GC0329_write_cmos_sensor(0xab, 0x04);
-	GC0329_write_cmos_sensor(0xac, 0x00);
-	GC0329_write_cmos_sensor(0xad, 0x07);
-	GC0329_write_cmos_sensor(0xae, 0x0e);
-	GC0329_write_cmos_sensor(0xaf, 0x00);
-	GC0329_write_cmos_sensor(0xb0, 0x00);
-	GC0329_write_cmos_sensor(0xb1, 0x09);
-	GC0329_write_cmos_sensor(0xb2, 0x00);
-	GC0329_write_cmos_sensor(0xb3, 0x00);
-	GC0329_write_cmos_sensor(0xb4, 0x31);
-	GC0329_write_cmos_sensor(0xb5, 0x19);
-	GC0329_write_cmos_sensor(0xb6, 0x24);
-	GC0329_write_cmos_sensor(0xba, 0x3a);
-	GC0329_write_cmos_sensor(0xbb, 0x24);
-	GC0329_write_cmos_sensor(0xbc, 0x2a);
-	GC0329_write_cmos_sensor(0xc0, 0x17);
-	GC0329_write_cmos_sensor(0xc1, 0x13);
-	GC0329_write_cmos_sensor(0xc2, 0x17);
-	GC0329_write_cmos_sensor(0xc6, 0x21);
-	GC0329_write_cmos_sensor(0xc7, 0x1c);
-	GC0329_write_cmos_sensor(0xc8, 0x1c);
-	GC0329_write_cmos_sensor(0xb7, 0x00);
-	GC0329_write_cmos_sensor(0xb8, 0x00);
-	GC0329_write_cmos_sensor(0xb9, 0x00);
-	GC0329_write_cmos_sensor(0xbd, 0x00);
-	GC0329_write_cmos_sensor(0xbe, 0x00);
-	GC0329_write_cmos_sensor(0xbf, 0x00);
-	GC0329_write_cmos_sensor(0xc3, 0x00);
-	GC0329_write_cmos_sensor(0xc4, 0x00);
-	GC0329_write_cmos_sensor(0xc5, 0x00);
-	GC0329_write_cmos_sensor(0xc9, 0x00);
-	GC0329_write_cmos_sensor(0xca, 0x00);
-	GC0329_write_cmos_sensor(0xcb, 0x00);
-	GC0329_write_cmos_sensor(0xa4, 0x00);
-	GC0329_write_cmos_sensor(0xa5, 0x00);
-	GC0329_write_cmos_sensor(0xa6, 0x00);
-	GC0329_write_cmos_sensor(0xa7, 0x00);
-	GC0329_SET_PAGE0;	
+	GC0329_write_cmos_sensor(0xfe  ,0x01);
+	GC0329_write_cmos_sensor(0xc0  ,0x1b);
+	GC0329_write_cmos_sensor(0xc1  ,0x13);
+	GC0329_write_cmos_sensor(0xc2  ,0x14);
+	GC0329_write_cmos_sensor(0xc6  ,0x1f);
+	GC0329_write_cmos_sensor(0xc7  ,0x1c);
+	GC0329_write_cmos_sensor(0xc8  ,0x1d);
+	GC0329_write_cmos_sensor(0xba  ,0x63);
+	GC0329_write_cmos_sensor(0xbb  ,0x4e);
+	GC0329_write_cmos_sensor(0xbc  ,0x59);
+	GC0329_write_cmos_sensor(0xb4  ,0x33);
+	GC0329_write_cmos_sensor(0xb5  ,0x32);
+	GC0329_write_cmos_sensor(0xb6  ,0x34);
+	GC0329_write_cmos_sensor(0xc3  ,0x18);
+	GC0329_write_cmos_sensor(0xc4  ,0x21);
+	GC0329_write_cmos_sensor(0xc5  ,0x1c);
+	GC0329_write_cmos_sensor(0xc9  ,0x11);
+	GC0329_write_cmos_sensor(0xca  ,0x12);
+	GC0329_write_cmos_sensor(0xcb  ,0x11);
+	GC0329_write_cmos_sensor(0xbd  ,0x85);
+	GC0329_write_cmos_sensor(0xbe  ,0x52);
+	GC0329_write_cmos_sensor(0xbf  ,0x54);
+	GC0329_write_cmos_sensor(0xb7  ,0x5a);
+	GC0329_write_cmos_sensor(0xb8  ,0x20);
+	GC0329_write_cmos_sensor(0xb9  ,0x23);
+	GC0329_write_cmos_sensor(0xa8  ,0x09);
+	GC0329_write_cmos_sensor(0xa9  ,0x00);//00
+	GC0329_write_cmos_sensor(0xaa  ,0x00);//00
+	GC0329_write_cmos_sensor(0xab  ,0x1f);//25
+	GC0329_write_cmos_sensor(0xac  ,0x16);//06
+	GC0329_write_cmos_sensor(0xad  ,0x19);//09
+	GC0329_write_cmos_sensor(0xae  ,0x3b);
+	GC0329_write_cmos_sensor(0xaf  ,0x20);
+	GC0329_write_cmos_sensor(0xb0  ,0x2c);
+	GC0329_write_cmos_sensor(0xb1  ,0x14);
+	GC0329_write_cmos_sensor(0xb2  ,0x00);//00
+	GC0329_write_cmos_sensor(0xb3  ,0x05);//05
+	GC0329_write_cmos_sensor(0xa4  ,0x00);
+	GC0329_write_cmos_sensor(0xa5  ,0x00);
+	GC0329_write_cmos_sensor(0xa6  ,0x00);
+	GC0329_write_cmos_sensor(0xa7  ,0x00);
+	GC0329_write_cmos_sensor(0xa1  ,0x42);
+	GC0329_write_cmos_sensor(0xa2  ,0x4f);
+	GC0329_write_cmos_sensor(0xfe, 0x00);
+	
+	
+	GC0329_write_cmos_sensor(0x05, 0x02); 	
+	GC0329_write_cmos_sensor(0x06, 0x2c); 
+	GC0329_write_cmos_sensor(0x07, 0x00);
+	GC0329_write_cmos_sensor(0x08, 0x43);
 
-	////////////////////asde ///////////////////
-	//GC0329_write_cmos_sensor(0xa0, 0xaf);
-	//GC0329_write_cmos_sensor(0xa2, 0xff);
+	GC0329_write_cmos_sensor(0xfe, 0x01);
 
-	GC0329_write_cmos_sensor(0x44, 0xa2); //a2
+	GC0329_write_cmos_sensor(0x29, 0x00);   //anti-flicker step [11:8]
+	GC0329_write_cmos_sensor(0x2a, 0x88);   //anti-flicker step [7:0]
+
+	GC0329_write_cmos_sensor(0x2b, 0x02);   //exp level 0  14.28fps
+	GC0329_write_cmos_sensor(0x2c, 0x70); 
+	GC0329_write_cmos_sensor(0x2d, 0x03);   //exp level 1  12.50fps
+	GC0329_write_cmos_sensor(0x2e, 0xb8); 
+	GC0329_write_cmos_sensor(0x2f, 0x05);   //exp level 2  10.00fps
+	GC0329_write_cmos_sensor(0x30, 0x50); 
+	GC0329_write_cmos_sensor(0x31, 0x07);   //exp level 3  7.14fps
+	GC0329_write_cmos_sensor(0x32, 0xf8); 
+	GC0329_write_cmos_sensor(0xfe, 0x00);	
+	GC0329_write_cmos_sensor(0x44 ,0xa0);
+	
+	GC0329_write_cmos_sensor(0xf0 ,0x07);
+	GC0329_write_cmos_sensor(0xf1 ,0x01);
+
+
 
 }
 
@@ -1256,6 +1279,7 @@ void GC0329_Lens_Select(kal_uint8 Lens_Tag)
 
 
 
+extern u32 pinSetIdx;//default main sensor
 UINT32 GC0329GetSensorID(UINT32 *sensorID)
 {
     kal_uint16 sensor_id=0;
@@ -1266,22 +1290,26 @@ UINT32 GC0329GetSensorID(UINT32 *sensorID)
 
     do
     {
-        	// check if sensor ID correct
-        	for(i = 0; i < 3; i++)
+        // check if sensor ID correct
+        for(i = 0; i < 3; i++)
 		{
-	            	sensor_id = GC0329_read_cmos_sensor(0x00);
-	            	printk("GC0329 Sensor id = %x\n", sensor_id);
-	            	if (sensor_id == GC0329_SENSOR_ID)
-			{
-	               	break;
-	            	}
-        	}
-        	mdelay(50);
+	        sensor_id = GC0329_read_cmos_sensor(0x00);
+	        printk("GC0329 Sensor id = %x\n", sensor_id);
+	        if (sensor_id == GC0329_SENSOR_ID){
+	           break;
+	        }
+        }
+        mdelay(50);
     }while(0);
+	//add by zym
+	if( 1 == pinSetIdx)
+		sensor_id = GC0329_SENSOR_ID;
+	//end by zym
 
     if(sensor_id != GC0329_SENSOR_ID)
-    {
-        SENSORDB("GC0329 Sensor id read failed, ID = %x\n", sensor_id);
+    {  
+		SENSORDB("GC0329 Sensor id read failed, ID = %x\n", sensor_id);	
+		*sensorID = 0xFFFFFFFF; // <============== ADD HERE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return ERROR_SENSOR_CONNECT_FAIL;
     }
 
@@ -1314,6 +1342,7 @@ UINT32 GC0329GetSensorID(UINT32 *sensorID)
 *************************************************************************/
 void GC0329_Write_More_Registers(void)
 {
+	#if 0
 	////////////20120427/////////////////////////
 	GC0329_write_cmos_sensor(0xfe,0x01); 																																
 	GC0329_write_cmos_sensor(0x18,0x22); 																																
@@ -1330,9 +1359,9 @@ void GC0329_Write_More_Registers(void)
 	GC0329_write_cmos_sensor(0x59,0x08);																																																																									
 	GC0329_write_cmos_sensor(0x5c,0x35);																																																																									
 	GC0329_write_cmos_sensor(0x5d,0x72);																																																																									
-	GC0329_write_cmos_sensor(0x67,0x80);																																																																									
-	GC0329_write_cmos_sensor(0x68,0x60);																																																																									
-	GC0329_write_cmos_sensor(0x69,0x90);																																																																									
+	GC0329_write_cmos_sensor(0x67,0x70);//0x80																																																																									
+	GC0329_write_cmos_sensor(0x68,0x80);//0x60																																																																									
+	GC0329_write_cmos_sensor(0x69,0x9a);//90 //0x60																																																																									
 	GC0329_write_cmos_sensor(0x6c,0x30);																																																																									
 	GC0329_write_cmos_sensor(0x6d,0x60);																																																																									
 	GC0329_write_cmos_sensor(0x70,0x10);	
@@ -1345,15 +1374,19 @@ void GC0329_Write_More_Registers(void)
 	GC0329_write_cmos_sensor(0xa5,0x31);																																																																									
 	GC0329_write_cmos_sensor(0xa7,0x35);																																																																									
 	GC0329_write_cmos_sensor(0x42,0xfe);																																																																									
-	GC0329_write_cmos_sensor(0xd1,0x2e);																																																																									
-	GC0329_write_cmos_sensor(0xd2,0x2e);
+	GC0329_write_cmos_sensor(0xd1,0x2d);	//34																																																																								
+	GC0329_write_cmos_sensor(0xd2,0x2d); //34
+
+	GC0329_write_cmos_sensor(0x7a,0x80); 
+	GC0329_write_cmos_sensor(0x7b,0x80); 
+	GC0329_write_cmos_sensor(0x7c,0x80); 	
 ///////////////////////////////////////////////
-	GC0329_write_cmos_sensor(0x1f,0x08);																																																																									
-	GC0329_write_cmos_sensor(0x22,0xba);	
+	GC0329_write_cmos_sensor(0x1f,0xc8);																																																																									
 	GC0329_write_cmos_sensor(0xfe,0x00);	
 	///////////////////////////////////////////////
-    	GC0329GammaSelect(GC0329_RGB_Gamma_m6);//0:use default
-    	GC0329_Lens_Select(0);//0:use default
+    	//GC0329GammaSelect(GC0329_RGB_Gamma_m1);//0:use default
+    	//GC0329_Lens_Select(XY_046A);
+	#endif
 }
 
 
@@ -1401,7 +1434,8 @@ UINT32 GC0329Open(void)
         SENSORDB("GC0329 Sensor id read failed, ID = %x\n", sensor_id);
         return ERROR_SENSOR_CONNECT_FAIL;
     }
-
+	
+     GC0329_MPEG4_encode_mode = KAL_FALSE;
     RETAILMSG(1, (TEXT("Sensor Read ID OK \r\n")));
     // initail sequence write in
     GC0329_Sensor_Init();
@@ -1454,25 +1488,19 @@ UINT32 GC0329Preview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
         MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 
 {
-    //kal_uint32 iTemp;
-    //kal_uint16 iStartX = 0, iStartY = 1;
-	printk("sym GC0329Preview\n");
-	#if 0
-	if(mt_set_gpio_mode(138,0)){printk(" set flashlight gpio mode failed!! \n");}
-	if(mt_set_gpio_dir(138,1)){printk("[CAMERA LENS] set gpio dir failed!! \n");}
-			 if(mt_set_gpio_out(138,1)){printk("[CAMERA LENS] set gpio failed!! \n");}  //sym modify
-			 msleep(3);
-#endif
+    kal_uint32 iTemp;
+    kal_uint16 iStartX = 0, iStartY = 1;
+
     if(sensor_config_data->SensorOperationMode == MSDK_SENSOR_OPERATION_MODE_VIDEO)		// MPEG4 Encode Mode
     {
         RETAILMSG(1, (TEXT("Camera Video preview\r\n")));
-       // GC0329_MPEG4_encode_mode = KAL_TRUE;
+        GC0329_MPEG4_encode_mode = KAL_TRUE;
        
     }
     else
     {
         RETAILMSG(1, (TEXT("Camera preview\r\n")));
-       // GC0329_MPEG4_encode_mode = KAL_FALSE;
+        GC0329_MPEG4_encode_mode = KAL_FALSE;
     }
 
     image_window->GrabStartX= IMAGE_SENSOR_VGA_GRAB_PIXELS;
@@ -1506,13 +1534,7 @@ UINT32 GC0329Capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 {
     GC0329_MODE_CAPTURE=KAL_TRUE;
-printk("sym GC0329Capture\n");
-#if 0
-	if(mt_set_gpio_mode(138,0)){printk(" set flashlight gpio mode failed!! \n");}
-	if(mt_set_gpio_dir(138,1)){printk("[CAMERA LENS] set gpio dir failed!! \n");}
-			 if(mt_set_gpio_out(138,0)){printk("[CAMERA LENS] set gpio failed!! \n");}  //sym modify
-			 msleep(3);
-			 #endif
+
     image_window->GrabStartX = IMAGE_SENSOR_VGA_GRAB_PIXELS;
     image_window->GrabStartY = IMAGE_SENSOR_VGA_GRAB_LINES;
     image_window->ExposureWindowWidth= IMAGE_SENSOR_FULL_WIDTH;
@@ -1552,13 +1574,14 @@ UINT32 GC0329GetInfo(MSDK_SCENARIO_ID_ENUM ScenarioId,
     pSensorInfo->SensorWebCamCaptureFrameRate=15;
     pSensorInfo->SensorResetActiveHigh=FALSE;
     pSensorInfo->SensorResetDelayCount=1;
-    pSensorInfo->SensorOutputDataFormat=SENSOR_OUTPUT_FORMAT_YUYV;
+    pSensorInfo->SensorOutputDataFormat=SENSOR_OUTPUT_FORMAT_UYVY;
     pSensorInfo->SensorClockPolarity=SENSOR_CLOCK_POLARITY_LOW;
     pSensorInfo->SensorClockFallingPolarity=SENSOR_CLOCK_POLARITY_LOW;
     pSensorInfo->SensorHsyncPolarity = SENSOR_CLOCK_POLARITY_LOW;
     pSensorInfo->SensorVsyncPolarity = SENSOR_CLOCK_POLARITY_LOW;
     pSensorInfo->SensorInterruptDelayLines = 1;
     pSensorInfo->SensroInterfaceType=SENSOR_INTERFACE_TYPE_PARALLEL;
+
 #if 0
     pSensorInfo->SensorISOBinningInfo.ISOBinningInfo[ISO_100_MODE].MaxWidth=CAM_SIZE_5M_WIDTH;
     pSensorInfo->SensorISOBinningInfo.ISOBinningInfo[ISO_100_MODE].MaxHeight=CAM_SIZE_5M_HEIGHT;
@@ -1584,18 +1607,19 @@ UINT32 GC0329GetInfo(MSDK_SCENARIO_ID_ENUM ScenarioId,
     pSensorInfo->SensorISOBinningInfo.ISOBinningInfo[ISO_1600_MODE].MaxHeight=CAM_SIZE_1M_HEIGHT;
     pSensorInfo->SensorISOBinningInfo.ISOBinningInfo[ISO_1600_MODE].ISOSupported=TRUE;
     pSensorInfo->SensorISOBinningInfo.ISOBinningInfo[ISO_1600_MODE].BinningEnable=FALSE;
+ #endif
     pSensorInfo->CaptureDelayFrame = 1;
-    pSensorInfo->PreviewDelayFrame = 0;
+    pSensorInfo->PreviewDelayFrame = 5;//0
     pSensorInfo->VideoDelayFrame = 4;
     pSensorInfo->SensorMasterClockSwitch = 0;
     pSensorInfo->SensorDrivingCurrent = ISP_DRIVING_2MA;
-#endif
+
     switch (ScenarioId)
     {
     case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
     case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
    // case MSDK_SCENARIO_ID_VIDEO_CAPTURE_MPEG4:
-        pSensorInfo->SensorClockFreq=12;
+        pSensorInfo->SensorClockFreq=26;
         pSensorInfo->SensorClockDividCount=	3;
         pSensorInfo->SensorClockRisingCount= 0;
         pSensorInfo->SensorClockFallingCount= 2;
@@ -1606,8 +1630,8 @@ UINT32 GC0329GetInfo(MSDK_SCENARIO_ID_ENUM ScenarioId,
 
         break;
     case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
-  //  case MSDK_SCENARIO_ID_CAMERA_CAPTURE_MEM:
-        pSensorInfo->SensorClockFreq=12;
+    //case MSDK_SCENARIO_ID_CAMERA_CAPTURE_MEM:
+        pSensorInfo->SensorClockFreq=26;
         pSensorInfo->SensorClockDividCount= 3;
         pSensorInfo->SensorClockRisingCount=0;
         pSensorInfo->SensorClockFallingCount=2;
@@ -1617,7 +1641,7 @@ UINT32 GC0329GetInfo(MSDK_SCENARIO_ID_ENUM ScenarioId,
         pSensorInfo->SensorGrabStartY = IMAGE_SENSOR_VGA_GRAB_LINES;
         break;
     default:
-        pSensorInfo->SensorClockFreq=12;
+        pSensorInfo->SensorClockFreq=26;
         pSensorInfo->SensorClockDividCount= 3;
         pSensorInfo->SensorClockRisingCount=0;
         pSensorInfo->SensorClockFallingCount=2;
@@ -1640,15 +1664,12 @@ UINT32 GC0329Control(MSDK_SCENARIO_ID_ENUM ScenarioId, MSDK_SENSOR_EXPOSURE_WIND
     {
     case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
     case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
-   // case MSDK_SCENARIO_ID_VIDEO_CAPTURE_MPEG4:
-        GC0329Preview(pImageWindow, pSensorConfigData);
-        break;
+    //case MSDK_SCENARIO_ID_VIDEO_CAPTURE_MPEG4:
     case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
- //   case MSDK_SCENARIO_ID_CAMERA_CAPTURE_MEM:
-        GC0329Capture(pImageWindow, pSensorConfigData);
+   // case MSDK_SCENARIO_ID_CAMERA_CAPTURE_MEM:
+       // GC0329Capture(pImageWindow, pSensorConfigData);
+         GC0329Preview(pImageWindow, pSensorConfigData);
         break;
-	default:
-		break;
     }
 
 
@@ -1671,25 +1692,25 @@ BOOL GC0329_set_param_wb(UINT16 para)
 			GC0329_awb_enable(KAL_TRUE);
 		break;
 		
-		case AWB_MODE_CLOUDY_DAYLIGHT: //cloudy
+		case AWB_MODE_CLOUDY_DAYLIGHT: //cloudy 4
 			GC0329_awb_enable(KAL_FALSE);
-			GC0329_write_cmos_sensor(0x77, 0x8c); //WB_manual_gain 
-			GC0329_write_cmos_sensor(0x78, 0x50);
+			GC0329_write_cmos_sensor(0x77, 0x80); //WB_manual_gain  8c//70
+			GC0329_write_cmos_sensor(0x78, 0x50); //50//60
 			GC0329_write_cmos_sensor(0x79, 0x40);
 		break;
 		
-		case AWB_MODE_DAYLIGHT: //sunny
+		case AWB_MODE_DAYLIGHT: //sunny// 2
 			GC0329_awb_enable(KAL_FALSE);
-			GC0329_write_cmos_sensor(0x77, 0x74); 
-			GC0329_write_cmos_sensor(0x78, 0x52);
-			GC0329_write_cmos_sensor(0x79, 0x40);			
+			GC0329_write_cmos_sensor(0x77, 0x60); //74
+			GC0329_write_cmos_sensor(0x78, 0x52);//52
+			GC0329_write_cmos_sensor(0x79, 0x52);			
 		break;
 		
-		case AWB_MODE_INCANDESCENT: //office
+		case AWB_MODE_INCANDESCENT: //office//1
 			GC0329_awb_enable(KAL_FALSE);
-			GC0329_write_cmos_sensor(0x77, 0x48);
-			GC0329_write_cmos_sensor(0x78, 0x40);
-			GC0329_write_cmos_sensor(0x79, 0x5c);
+			GC0329_write_cmos_sensor(0x77, 0x40);
+			GC0329_write_cmos_sensor(0x78, 0x50);//40
+			GC0329_write_cmos_sensor(0x79, 0x70);
 		break;
 		
 		case AWB_MODE_TUNGSTEN: //home
@@ -1699,19 +1720,17 @@ BOOL GC0329_set_param_wb(UINT16 para)
 			GC0329_write_cmos_sensor(0x79, 0x70);
 		break;
 		
-		case AWB_MODE_FLUORESCENT:
+		case AWB_MODE_FLUORESCENT://///3
 			GC0329_awb_enable(KAL_FALSE);
-			GC0329_write_cmos_sensor(0x77, 0x40);
-			GC0329_write_cmos_sensor(0x78, 0x42);
-			GC0329_write_cmos_sensor(0x79, 0x50);
+			GC0329_write_cmos_sensor(0x77, 0x40);//40
+			GC0329_write_cmos_sensor(0x78, 0x40);
+			GC0329_write_cmos_sensor(0x79, 0x48);//50
 		break;
 		
 		default:
 		return FALSE;
 	}
-	spin_lock(&Gc0329_drv_lock);
-    Gc0329CurrentStatus.iWB = para;
-	spin_unlock(&Gc0329_drv_lock);
+
 	return TRUE;
 } /* GC0329_set_param_wb */
 
@@ -1767,45 +1786,50 @@ BOOL GC0329_set_param_banding(UINT16 para)
 	switch (para)
 	{
 		case AE_FLICKER_MODE_50HZ:
-			GC0329_write_cmos_sensor(0x05, 0x01); 	
-			GC0329_write_cmos_sensor(0x06, 0x32); 
+	
+			GC0329_write_cmos_sensor(0x05, 0x02); 	
+			GC0329_write_cmos_sensor(0x06, 0x2c); 
 			GC0329_write_cmos_sensor(0x07, 0x00);
-			GC0329_write_cmos_sensor(0x08, 0x70);
-			
-			GC0329_SET_PAGE1;
+			GC0329_write_cmos_sensor(0x08, 0x43);
+
+			GC0329_write_cmos_sensor(0xfe, 0x01);
+
 			GC0329_write_cmos_sensor(0x29, 0x00);   //anti-flicker step [11:8]
-			GC0329_write_cmos_sensor(0x2a, 0x3c);   //anti-flicker step [7:0]
-			
+			GC0329_write_cmos_sensor(0x2a, 0x88);   //anti-flicker step [7:0]
+
 			GC0329_write_cmos_sensor(0x2b, 0x02);   //exp level 0  14.28fps
-			GC0329_write_cmos_sensor(0x2c, 0x58); 
-			GC0329_write_cmos_sensor(0x2d, 0x02);   //exp level 1  12.50fps
-			GC0329_write_cmos_sensor(0x2e, 0xd0); 
-			GC0329_write_cmos_sensor(0x2f, 0x03);   //exp level 2  10.00fps
-			GC0329_write_cmos_sensor(0x30, 0xc0); 
-			GC0329_write_cmos_sensor(0x31, 0x04);   //exp level 3  7.14fps
-			GC0329_write_cmos_sensor(0x32, 0xb0); 
-			GC0329_SET_PAGE0;
+			GC0329_write_cmos_sensor(0x2c, 0x70); 
+			GC0329_write_cmos_sensor(0x2d, 0x03);   //exp level 1  12.50fps
+			GC0329_write_cmos_sensor(0x2e, 0xb8); 
+			GC0329_write_cmos_sensor(0x2f, 0x05);   //exp level 2  10.00fps
+			GC0329_write_cmos_sensor(0x30, 0x50); 
+			GC0329_write_cmos_sensor(0x31, 0x07);   //exp level 3  7.14fps
+			GC0329_write_cmos_sensor(0x32, 0xf8); 
+			GC0329_write_cmos_sensor(0xfe, 0x00);	
+
 			break;
 
 		case AE_FLICKER_MODE_60HZ:
-			GC0329_write_cmos_sensor(0x05, 0x01); 	
-			GC0329_write_cmos_sensor(0x06, 0x32); 
+			GC0329_write_cmos_sensor(0x05, 0x02); 	
+			GC0329_write_cmos_sensor(0x06, 0x4c); 
 			GC0329_write_cmos_sensor(0x07, 0x00);
-			GC0329_write_cmos_sensor(0x08, 0x70);
+			GC0329_write_cmos_sensor(0x08, 0x88);
 			
-			GC0329_SET_PAGE1;
+			GC0329_write_cmos_sensor(0xfe, 0x01);
+
 			GC0329_write_cmos_sensor(0x29, 0x00);   //anti-flicker step [11:8]
-			GC0329_write_cmos_sensor(0x2a, 0x32);   //anti-flicker step [7:0]
+			GC0329_write_cmos_sensor(0x2a, 0x4e);   //anti-flicker step [7:0]
 			
 			GC0329_write_cmos_sensor(0x2b, 0x02);   //exp level 0  15.00fps
-			GC0329_write_cmos_sensor(0x2c, 0x58); 
-			GC0329_write_cmos_sensor(0x2d, 0x02);   //exp level 0  12.00fps
-			GC0329_write_cmos_sensor(0x2e, 0xbc); 
+			GC0329_write_cmos_sensor(0x2c, 0x70); 
+			GC0329_write_cmos_sensor(0x2d, 0x03);   //exp level 0  12.00fps
+			GC0329_write_cmos_sensor(0x2e, 0xa8); 
 			GC0329_write_cmos_sensor(0x2f, 0x03);   //exp level 0  10.00fps
-			GC0329_write_cmos_sensor(0x30, 0x52); 
-			GC0329_write_cmos_sensor(0x31, 0x04);   //exp level 0  7.05fps
-			GC0329_write_cmos_sensor(0x32, 0xb0); 
-			GC0329_SET_PAGE0;
+			GC0329_write_cmos_sensor(0x30, 0xa8); 
+			GC0329_write_cmos_sensor(0x31, 0x05);   //exp level 0  7.05fps
+			GC0329_write_cmos_sensor(0x32, 0x2e); 
+			GC0329_write_cmos_sensor(0xfe, 0x00);
+
 		break;
 		default:
 		return FALSE;
@@ -1818,8 +1842,8 @@ BOOL GC0329_set_param_banding(UINT16 para)
 BOOL GC0329_set_param_exposure(UINT16 para)
 {
 	kal_uint8 value_luma, value_Y;
-	value_luma = (GC0329_NIGHT_MODE?0x2b:0x00);
-	value_Y = (GC0329_NIGHT_MODE?0x68:0x50);
+	value_luma = (GC0329_NIGHT_MODE?0x2b:0x00);//00
+	value_Y = (GC0329_NIGHT_MODE?0x70:0x6a);//5c
 
 	switch (para)
 	{
@@ -1831,10 +1855,11 @@ BOOL GC0329_set_param_exposure(UINT16 para)
 		break;
 		
 		case AE_EV_COMP_n10:
-			GC0329_write_cmos_sensor(0xd5, value_luma - 0x30);
+			//GC0329_write_cmos_sensor(0xd5, value_luma - 0x18);
 			GC0329_write_cmos_sensor(0xfe, 0x01);
 			GC0329_write_cmos_sensor(0x13, value_Y - 0x18);
 			GC0329_write_cmos_sensor(0xfe, 0x00);
+			GC0329_write_cmos_sensor(0x70, 0x28);
 		break;
 		
 		case AE_EV_COMP_n07:
@@ -1852,10 +1877,11 @@ BOOL GC0329_set_param_exposure(UINT16 para)
 		break;				
 		
 		case AE_EV_COMP_00:
-			GC0329_write_cmos_sensor(0xd5, value_luma+0x06);
+			GC0329_write_cmos_sensor(0xd5, value_luma-0x08);//00
 			GC0329_write_cmos_sensor(0xfe, 0x01);
-			GC0329_write_cmos_sensor(0x13, value_Y);
+			GC0329_write_cmos_sensor(0x13, 0x48);//50 leo
 			GC0329_write_cmos_sensor(0xfe, 0x00);
+			GC0329_write_cmos_sensor(0x70, 0x48);
 		break;
 
 		case AE_EV_COMP_03:
@@ -1873,10 +1899,11 @@ BOOL GC0329_set_param_exposure(UINT16 para)
 		break;
 		
 		case AE_EV_COMP_10:
-			GC0329_write_cmos_sensor(0xd5, value_luma + 0x30);
+			//GC0329_write_cmos_sensor(0xd5, value_luma + 0x08);
 			GC0329_write_cmos_sensor(0xfe, 0x01);
-			GC0329_write_cmos_sensor(0x13, value_Y + 0x30);
+			GC0329_write_cmos_sensor(0x13, value_Y + 0x18);
 			GC0329_write_cmos_sensor(0xfe, 0x00);
+			GC0329_write_cmos_sensor(0x70, 0x68);
 		break;
 		
 		case AE_EV_COMP_13:
@@ -1891,6 +1918,33 @@ BOOL GC0329_set_param_exposure(UINT16 para)
 
 	return TRUE;
 } /* GC0329_set_param_exposure */
+
+UINT32 GC0329YUVSetVideoMode(UINT16 u2FrameRate)    // lanking add
+{
+  
+        GC0329_MPEG4_encode_mode = KAL_TRUE;
+     if (u2FrameRate == 30)
+   	{
+   	
+   	    /*********video frame ************/
+		
+   	}
+    else if (u2FrameRate == 15)       
+    	{
+    	
+   	    /*********video frame ************/
+		
+    	}
+    else
+   	{
+   	
+            SENSORDB("Wrong Frame Rate"); 
+			
+   	}
+
+      return TRUE;
+
+}
 
 
 UINT32 GC0329YUVSensorSetting(FEATURE_ID iCmd, UINT16 iPara)
@@ -1917,16 +1971,31 @@ UINT32 GC0329YUVSensorSetting(FEATURE_ID iCmd, UINT16 iPara)
     return TRUE;
 } /* GC0329YUVSensorSetting */
 
+//add by zym
+UINT32 GC0329SetTestPatternMode(kal_bool bEnable)   
+{	
+	SENSORDB("[GC0329SetTestPatternMode]test pattern bEnable:=%d\n",bEnable);	
+	if(bEnable)		
+	{		
+		GC0329_write_cmos_sensor(0x4c,0x07);	
+	}	
+	else	
+	{		
+		GC0329_write_cmos_sensor(0x4c,0x00);	
+	}	
+	return ERROR_NONE; 
+} 
+
 
 UINT32 GC0329FeatureControl(MSDK_SENSOR_FEATURE_ENUM FeatureId,
         UINT8 *pFeaturePara,UINT32 *pFeatureParaLen)
 {
     UINT16 *pFeatureReturnPara16=(UINT16 *) pFeaturePara;
-//    UINT16 *pFeatureData16=(UINT16 *) pFeaturePara;
+    UINT16 *pFeatureData16=(UINT16 *) pFeaturePara;
     UINT32 *pFeatureReturnPara32=(UINT32 *) pFeaturePara;
     UINT32 *pFeatureData32=(UINT32 *) pFeaturePara;
-//    UINT32 GC0329SensorRegNumber;
-//    UINT32 i;
+    UINT32 GC0329SensorRegNumber;
+    UINT32 i;
     MSDK_SENSOR_CONFIG_STRUCT *pSensorConfigData=(MSDK_SENSOR_CONFIG_STRUCT *) pFeaturePara;
     MSDK_SENSOR_REG_INFO_STRUCT *pSensorRegData=(MSDK_SENSOR_REG_INFO_STRUCT *) pFeaturePara;
 
@@ -1991,14 +2060,21 @@ UINT32 GC0329FeatureControl(MSDK_SENSOR_FEATURE_ENUM FeatureId,
     case SENSOR_FEATURE_SET_YUV_CMD:
         GC0329YUVSensorSetting((FEATURE_ID)*pFeatureData32, *(pFeatureData32+1));
         break;
+    case SENSOR_FEATURE_SET_VIDEO_MODE:    //  lanking
+	 GC0329YUVSetVideoMode(*pFeatureData16);
+	 break;
     case SENSOR_FEATURE_CHECK_SENSOR_ID:
 	GC0329GetSensorID(pFeatureData32);
 	break;
-    case SENSOR_FEATURE_GET_EXIF_INFO:
-			SENSORDB("SENSOR_FEATURE_GET_EXIF_INFO\n");
-			SENSORDB("EXIF addr = 0x%x\n",*pFeatureData32); 
-			Gc0329GetExifInfo(*pFeatureData32);
-			break;
+	//add by zym
+	case SENSOR_FEATURE_SET_TEST_PATTERN:
+		GC0329SetTestPatternMode((BOOL) *pFeatureData16);
+	break;
+	case SENSOR_FEATURE_GET_TEST_PATTERN_CHECKSUM_VALUE :
+        *pFeatureReturnPara32=GC0329_TEST_PATTERN_CHECKSUM;
+        *pFeatureParaLen=4;
+	break;
+	//end by zym
     default:
         break;
 	}
