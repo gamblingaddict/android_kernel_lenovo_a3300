@@ -637,7 +637,7 @@ static int BMA250_CheckDeviceID(struct i2c_client *client)
 	}
 	if(databuf[0]!=BMA250_FIXED_DEVID)
 	{
-		printk("BMA250_CheckDeviceID %d failt!\n ", databuf[0]);
+		//printk("BMA250_CheckDeviceID %d failt!\n ", databuf[0]);
 		return BMA250_ERR_IDENTIFICATION;
 	}
 	else
@@ -803,7 +803,7 @@ static int bma250_init_client(struct i2c_client *client, int reset_cali)
 		break;
 	}	
 	a++;	
-	printk("bma250_init_client count: %d\n", a);
+	//printk("bma250_init_client count: %d\n", a);
 	}while(a < 1000);
 	
 	res = BMA250_SetBWRate(client, BMA250_BW_50HZ);
