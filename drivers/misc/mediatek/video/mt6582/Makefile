@@ -8,7 +8,6 @@ obj-$(CONFIG_MTK_FB) += disp_drv.o                                 \
          mtkfb.o                                    \
 		 mtkfb_vsync.o								\
          debug.o                                    \
-         mtkfb_proc.o                               \
          disp_sync.o                                \
          disp_mgr.o
 
