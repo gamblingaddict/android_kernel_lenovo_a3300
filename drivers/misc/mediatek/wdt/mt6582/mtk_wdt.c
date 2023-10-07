@@ -299,13 +299,13 @@ void wdt_arch_reset(char mode)
 {
 
     unsigned int wdt_mode_val;
-	printk("wdt_arch_reset called@Kernel mode =%c\n",mode);
+	//printk("wdt_arch_reset called@Kernel mode =%c\n",mode);
 	
 	spin_lock(&rgu_reg_operation_spinlock);
 	/* Watchdog Rest */
 	DRV_WriteReg32(MTK_WDT_RESTART, MTK_WDT_RESTART_KEY);
 	wdt_mode_val = DRV_Reg32(MTK_WDT_MODE);
-	printk("wdt_arch_reset called MTK_WDT_MODE =%x \n",wdt_mode_val);
+	//printk("wdt_arch_reset called MTK_WDT_MODE =%x \n",wdt_mode_val);
 	/* clear autorestart bit: autoretart: 1, bypass power key, 0: not bypass power key */
 	wdt_mode_val &=(~MTK_WDT_MODE_AUTO_RESTART);
 	/* make sure WDT mode is hw reboot mode, can not config isr mode  */
@@ -322,10 +322,10 @@ void wdt_arch_reset(char mode)
 	}
 
 	DRV_WriteReg32(MTK_WDT_MODE,wdt_mode_val);
-	printk("wdt_arch_reset called end  MTK_WDT_MODE =%x \n",wdt_mode_val);
+	//printk("wdt_arch_reset called end  MTK_WDT_MODE =%x \n",wdt_mode_val);
 	udelay(100);
 	DRV_WriteReg32(MTK_WDT_SWRST, MTK_WDT_SWRST_KEY);
-        printk("wdt_arch_reset: SW_reset happen\n");
+        //printk("wdt_arch_reset: SW_reset happen\n");
 	spin_unlock(&rgu_reg_operation_spinlock);
 
 	while (1)
@@ -662,7 +662,7 @@ static int mtk_wdt_remove(struct platform_device *dev)
 
 static void mtk_wdt_shutdown(struct platform_device *dev)
 {	
-	printk("******** MTK WDT driver shutdown!! ********\n" );
+	//printk("******** MTK WDT driver shutdown!! ********\n" );
 
 	//mtk_wdt_ModeSelection(KAL_FALSE, KAL_FALSE, KAL_FALSE);
 	//kick external wdt
@@ -670,7 +670,7 @@ static void mtk_wdt_shutdown(struct platform_device *dev)
 
 	mtk_wdt_restart(WD_TYPE_NORMAL);
 
-   printk("******** MTK WDT driver shutdown done ********\n" );
+	printk("******** MTK WDT driver shutdown done ********\n" );
 }
 
 void mtk_wd_suspend(void)

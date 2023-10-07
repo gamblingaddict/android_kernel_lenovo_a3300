@@ -18,7 +18,11 @@
 
 #include "ti_sn65dsi8x_driver.h"
 
+#ifdef YES_LOGSPAM
 static size_t ti_sn65dsi8x_log_on = true;
+#else
+static size_t ti_sn65dsi8x_log_on = false;
+#endif
 #define ti_sn65dsi8x_LOG(fmt, arg...) \
 	do { \
 		if (ti_sn65dsi8x_log_on) {printk("[ti_sn65dsi8x]%s,#%d ", __func__, __LINE__); printk(fmt, ##arg);} \

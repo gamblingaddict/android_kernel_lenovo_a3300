@@ -512,12 +512,14 @@ kal_uint32 bq24196_get_vsys_stat(void)
   *********************************************************/
 void bq24196_dump_register(void)
 {
+#ifdef YES_LOGSPAM
     int i=0;
     for (i=0;i<bq24196_REG_NUM;i++)
     {
         bq24196_read_byte(i, &bq24196_reg[i]);
         printk("[bq24196_dump_register] Reg[0x%X]=0x%X\n", i, bq24196_reg[i]);        
     }
+#endif
 }
 
 static int bq24196_driver_probe(struct i2c_client *client, const struct i2c_device_id *id) 

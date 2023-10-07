@@ -351,7 +351,7 @@ int ipanic_data_to_sd(int dt, void *data)
 				      dheader->encrypt);
 	}
 	if (IS_ERR(ERR_PTR(errno))) {
-		LOGW("%s: dump %s failed[%d]\n", __func__, dheader->name, errno);
+		//LOGW("%s: dump %s failed[%d]\n", __func__, dheader->name, errno);
 		if (errno == -EFBIG)
 			dheader->used = dheader->total;
 		else

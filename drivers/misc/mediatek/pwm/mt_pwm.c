@@ -1462,7 +1462,7 @@ static int  mt_pwm_remove(struct platform_device *pdev)
 
 static void mt_pwm_shutdown(struct platform_device *pdev)
 {
-	printk("mt_pwm_shutdown\n");
+	//printk("mt_pwm_shutdown\n");
 	return;
 }
 

@@ -5,10 +5,6 @@ ccflags-y += -I$(srctree)/drivers/staging/android/ion/
 
 ccflags-y += -DMET_USER_EVENT_SUPPORT 
 
-ifneq ($(TARGET_BUILD_VARIANT),user)
-ccflags-y += -DYES_LOGSPAM
-endif
-
 obj-y += ddp_drv.o
 obj-y += ddp_ovl.o
 obj-y += ddp_bls.o

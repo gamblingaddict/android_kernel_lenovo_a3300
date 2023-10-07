@@ -4,6 +4,10 @@ ARCH_MTK_PROJECT := $(subst ",,$(CONFIG_ARCH_MTK_PROJECT))
 
 MTK_CUSTOM_PATH  := $(srctree)/drivers/misc/mediatek
 
+ifneq ($(TARGET_BUILD_VARIANT),user)
+ccflags-y += -DYES_LOGSPAM
+endif
+
 ifneq ($(CONFIG_ARM64), y)
 # For arm32, mach folder
 MTK_PLATFORM_PATH_ROOT := $(srctree)/arch/arm/mach-$(MTK_PLATFORM)

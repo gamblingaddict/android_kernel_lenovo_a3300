@@ -185,7 +185,7 @@ static int vib_remove(struct platform_device *pdev)
 static void vib_shutdown(struct platform_device *pdev)
 {
 	unsigned long flags;
-	printk("[vibrator]vib_shutdown: enter!\n");
+	//printk("[vibrator]vib_shutdown: enter!\n");
 	spin_lock_irqsave(&vibe_lock, flags);
 	shutdown_flag = 1;
 	if (vibe_state) {

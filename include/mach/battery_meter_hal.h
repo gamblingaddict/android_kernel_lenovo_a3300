@@ -9,13 +9,16 @@
 #define BM_LOG_CRTI 1
 #define BM_LOG_FULL 2
 
+#ifdef YES_LOGSPAM
 #define bm_print(num, fmt, args...)   \
 do {									\
 	if (Enable_FGADC_LOG >= (int)num) {				\
 		pr_notice(fmt, ##args); \
 	}								   \
 } while (0)
-
+#else
+#define bm_print(num, fmt, args...) 
+#endif
 
 /* ============================================================ */
 /* ENUM */

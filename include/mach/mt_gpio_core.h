@@ -21,9 +21,15 @@
 #define VERSION     GPIO_DEVICE
 
 #define GPIOTAG                "[GPIO] "
+#ifdef YES_LOGSPAM
 #define GPIOLOG(fmt, arg...)   printk(GPIOTAG fmt, ##arg)
 #define GPIOMSG(fmt, arg...)   printk(fmt, ##arg)
 #define GPIOERR(fmt, arg...)   printk(KERN_ERR GPIOTAG "%5d: "fmt, __LINE__, ##arg)
+#else
+#define GPIOLOG(fmt, arg...)
+#define GPIOMSG(fmt, arg...)
+#define GPIOERR(fmt, arg...)
+#endif
 #define GPIOFUC(fmt, arg...)	/* printk(GPIOTAG "%s\n", __FUNCTION__) */
 /*----------------------------------------------------------------------------*/
 /* Error Code No. */
