@@ -36,11 +36,19 @@ extern unsigned int dbg_log;
 extern unsigned int irq_log;
 extern unsigned int irq_err_log;
 
+#ifdef YES_LOGSPAM
 #define DISP_IRQ(string, args...) if(irq_log) printk("[DDP]"string,##args)  // default off
 #define DISP_DBG(string, args...) if(dbg_log) printk("[DDP]"string,##args)  // default off, use "adb shell "echo dbg_log:1 > sys/kernel/debug/dispsys" to enable
 #define DISP_MSG(string, args...) printk("[DDP]"string,##args)  // default on, important msg, not err
 #define DISP_ERR(string, args...) printk("[DDP]error:"string,##args)  //default on, err msg
 #define DDP_IRQ_ERR(string) if(irq_err_log) aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DEFAULT, "DDP, "string, string)  // default off
+#else
+#define DISP_IRQ(string, args...)
+#define DISP_DBG(string, args...)
+#define DISP_MSG(string, args...)
+#define DISP_ERR(string, args...)
+#define DDP_IRQ_ERR(string)
+#endif
 
 void ddp_debug_init(void);
 void ddp_debug_exit(void);
