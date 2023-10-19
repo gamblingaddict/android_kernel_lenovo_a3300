@@ -21,6 +21,7 @@
 #include <linux/rtmutex.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
+#include <linux/err.h>
 
 struct binder_transaction;
 
