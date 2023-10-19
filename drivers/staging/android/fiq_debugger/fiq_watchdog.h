@@ -17,4 +17,11 @@
 
 void fiq_watchdog_triggered(const struct pt_regs *regs, void *svc_sp);
 
+<<<<<<< HEAD:drivers/staging/android/fiq_debugger/fiq_watchdog.h
 #endif
+=======
+#include <uapi/linux/android/binder.h>
+
+#endif /* _LINUX_BINDER_H */
+
+>>>>>>> 4526c83b32b (BACKPORT: UPSTREAM: ANDROID: binder: remove 32-bit binder interface.):drivers/android/binder.h
