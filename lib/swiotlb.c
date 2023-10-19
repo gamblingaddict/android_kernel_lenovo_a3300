@@ -68,7 +68,7 @@ static unsigned long io_tlb_nslabs;
 /*
  * When the IOMMU overflows we return a fallback buffer. This sets the size.
  */
-static unsigned long io_tlb_overflow = 32*1024;
+static unsigned long io_tlb_overflow = 4*1024;
 
 static phys_addr_t io_tlb_overflow_buffer;
 
@@ -117,7 +117,7 @@ unsigned long swiotlb_nr_tbl(void)
 EXPORT_SYMBOL_GPL(swiotlb_nr_tbl);
 
 /* default to 64MB */
-#define IO_TLB_DEFAULT_SIZE (64UL<<20)
+#define IO_TLB_DEFAULT_SIZE (0)
 unsigned long swiotlb_size_or_default(void)
 {
 	unsigned long size;
@@ -690,6 +690,7 @@ swiotlb_full(struct device *dev, size_t size, enum dma_data_direction dir,
 	 */
 	printk(KERN_ERR "DMA: Out of SW-IOMMU space for %zu bytes at "
 	       "device %s\n", size, dev ? dev_name(dev) : "?");
+	BUG();
 
 	if (size <= io_tlb_overflow || !do_panic)
 		return;

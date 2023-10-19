@@ -366,14 +366,21 @@ static void audit_hold_skb(struct sk_buff *skb)
  * For one reason or another this nlh isn't getting delivered to the userspace
  * audit daemon, just send it to printk.
  */
+extern void mtk_audit_hook(char *data);
 static void audit_printk_skb(struct sk_buff *skb)
 {
 	struct nlmsghdr *nlh = nlmsg_hdr(skb);
 	char *data = nlmsg_data(nlh);
 
 	if (nlh->nlmsg_type != AUDIT_EOE) {
-		if (printk_ratelimit())
+		if (printk_ratelimit()){
+			#ifdef CONFIG_MTK_AEE_FEATURE
+            		if(nlh->nlmsg_type==1400){
+                   		 mtk_audit_hook(data);
+	       		}
+	       		 #endif
 			printk(KERN_NOTICE "type=%d %s\n", nlh->nlmsg_type, data);
+		}		
 		else
 			audit_log_lost("printk limit exceeded\n");
 	}
@@ -384,6 +391,16 @@ static void audit_printk_skb(struct sk_buff *skb)
 static void kauditd_send_skb(struct sk_buff *skb)
 {
 	int err;
+        #ifdef CONFIG_MTK_AEE_FEATURE
+	struct nlmsghdr *nlh = nlmsg_hdr(skb);
+	char *data = NLMSG_DATA(nlh);
+	if (nlh->nlmsg_type != AUDIT_EOE) {
+		if(nlh->nlmsg_type==1400){
+	   		 mtk_audit_hook(data);
+		}
+		
+	}
+	#endif
 	/* take a reference in case we can't send it and we want to hold it */
 	skb_get(skb);
 	err = netlink_unicast(audit_sock, skb, audit_nlk_portid, 0);
