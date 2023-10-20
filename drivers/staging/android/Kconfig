@@ -77,6 +77,12 @@ config MTK_LCA_RAM_OPTIMIZE
 	help
 	  Provide for low cost phone to use memory efficiently.
 
+config ANDROID_FSTAB_FAKE
+	bool "Enable android fstab driver for fake DT fstab"
+	depends on PROC_FS
+	---help---
+	  This is intended to allow early mounting partitions
+	  on devices without DT, or where DT can't be modified.
 
 source "drivers/staging/android/ion/Kconfig"
 
