@@ -363,7 +363,7 @@ static suspend_state_t decode_state(const char *buf, size_t n)
 }
 
 //<20130327> <marc.huang> merge android kernel 3.0 state_store function
-#ifdef CONFIG_MTK_LDVT
+//#ifdef CONFIG_MTK_LDVT
 static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			   const char *buf, size_t n)
 {
@@ -391,17 +391,13 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 	pm_autosleep_unlock();
 	return error ? error : n;
 }
-#else //#ifdef CONFIG_MTK_LDVT
+//#else //#ifdef CONFIG_MTK_LDVT
+#if 0
 static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
                const char *buf, size_t n)
 {
 #ifdef CONFIG_SUSPEND
-#ifdef CONFIG_EARLYSUSPEND
-    suspend_state_t state = PM_SUSPEND_ON;
-#else
     suspend_state_t state = PM_SUSPEND_STANDBY;
-#endif
-    const char * const *s;
 #endif
     char *p;
     int len;
@@ -427,13 +423,6 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
     if (len == 4 && !strncmp(buf, "disk", len)) {
 #ifdef CONFIG_MTK_HIBERNATION
         hib_log("trigger hibernation...\n");
-#ifdef CONFIG_EARLYSUSPEND
-        if (PM_SUSPEND_ON == get_suspend_state()) {
-            hib_warn("\"on\" to \"disk\" (i.e., 0->4) is not supported !!!\n");
-            error = -EINVAL;
-            goto Exit;
-        }
-#endif
         if (!pre_hibernate()) {
             error = 0;
             error = mtk_hibernate();
@@ -445,20 +434,12 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
     }
 
 #ifdef CONFIG_SUSPEND
-    for (s = &pm_states[state]; state < PM_SUSPEND_MAX; s++, state++) {
-        if (*s && len == strlen(*s) && !strncmp(buf, *s, len))
+    for (; state < PM_SUSPEND_MAX; state++) {
+        if (len == strlen(pm_states[state].label) && !strncmp(buf, pm_states[state].label, len))
             break;
     }
-    if (state < PM_SUSPEND_MAX && *s) {
-#ifdef CONFIG_EARLYSUSPEND
-        if (state == PM_SUSPEND_ON || valid_state(state)) {
-            error = 0;
-            request_suspend_state(state);
-        } else
-            error = -EINVAL;
-#else
+    if (state < PM_SUSPEND_MAX) {
         error = enter_state(state);
-#endif
     }
 #endif
 
