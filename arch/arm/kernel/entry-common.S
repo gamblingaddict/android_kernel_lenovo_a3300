@@ -369,6 +369,16 @@ ENTRY(vector_swi)
 	ct_user_exit
 	get_thread_info tsk
 
+#ifdef CONFIG_ALIGNMENT_TRAP
+	ldr	ip, __cr_alignment
+	ldr	ip, [ip]
+	mcr	p15, 0, ip, c1, c0		@ update control register
+#endif
+
+	enable_irq
+	ct_user_exit
+	get_thread_info tsk
+
 	/*
 	 * Get the system call number.
 	 */
