@@ -52,23 +52,7 @@
 
 #define USING_XLOG
 
-#ifdef USING_XLOG 
-#include <linux/xlog.h>
-
-#define TAG     "Power/clkmgr"
-
-#define clk_err(fmt, args...)       \
-    xlog_printk(ANDROID_LOG_ERROR, TAG, fmt, ##args)
-#define clk_warn(fmt, args...)      \
-    xlog_printk(ANDROID_LOG_WARN, TAG, fmt, ##args)
-#define clk_info(fmt, args...)      \
-    xlog_printk(ANDROID_LOG_INFO, TAG, fmt, ##args)
-#define clk_dbg(fmt, args...)       \
-    xlog_printk(ANDROID_LOG_DEBUG, TAG, fmt, ##args)
-#define clk_ver(fmt, args...)       \
-    xlog_printk(ANDROID_LOG_VERBOSE, TAG, fmt, ##args)
-
-#else
+#ifdef YES_LOGSPAM 
 
 #define TAG     "[Power/clkmgr] "
 
@@ -87,6 +71,14 @@
 #define clk_ver(fmt, args...)       \
     printk(KERN_DEBUG TAG);         \
     printk(KERN_CONT fmt, ##args)
+
+#else
+
+#define clk_err(fmt, args...)
+#define clk_warn(fmt, args...)
+#define clk_info(fmt, args...)
+#define clk_dbg(fmt, args...)
+#define clk_ver(fmt, args...)
 
 #endif
 

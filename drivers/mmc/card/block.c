@@ -52,8 +52,11 @@
 #include <linux/vmstat.h>
 #define FEATURE_STORAGE_VMSTAT_LOGGER
 
-
+#ifdef YES_LOGSPAM
 #include <linux/xlog.h>
+#else
+#define xlog_printk(prio, tag, fmt, ...)
+#endif
 #include <asm/div64.h>
 #include <linux/vmalloc.h>
 

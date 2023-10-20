@@ -131,14 +131,14 @@ kal_uint32 bq24196_read_interface (kal_uint8 RegNum, kal_uint8 *val, kal_uint8 M
     kal_uint8 bq24196_reg = 0;
     int ret = 0;
 
-    printk("--------------------------------------------------\n");
+    //printk("--------------------------------------------------\n");
 
     ret = bq24196_read_byte(RegNum, &bq24196_reg);
-    printk("[bq24196_read_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
+    //printk("[bq24196_read_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
     
     bq24196_reg &= (MASK << SHIFT);
     *val = (bq24196_reg >> SHIFT);    
-    printk("[bq24196_read_interface] Val=0x%x\n", *val);
+    //printk("[bq24196_read_interface] Val=0x%x\n", *val);
 
     return ret;
 }
@@ -148,7 +148,7 @@ kal_uint32 bq24196_config_interface (kal_uint8 RegNum, kal_uint8 val, kal_uint8 
     kal_uint8 bq24196_reg = 0;
     int ret = 0;
 
-    printk("--------------------------------------------------\n");
+    //printk("--------------------------------------------------\n");
 
     ret = bq24196_read_byte(RegNum, &bq24196_reg);
     //printk("[bq24196_config_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
@@ -517,7 +517,7 @@ void bq24196_dump_register(void)
     for (i=0;i<bq24196_REG_NUM;i++)
     {
         bq24196_read_byte(i, &bq24196_reg[i]);
-        printk("[bq24196_dump_register] Reg[0x%X]=0x%X\n", i, bq24196_reg[i]);        
+        //printk("[bq24196_dump_register] Reg[0x%X]=0x%X\n", i, bq24196_reg[i]);        
     }
 #endif
 }

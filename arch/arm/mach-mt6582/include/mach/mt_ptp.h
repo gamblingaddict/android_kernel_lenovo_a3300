@@ -95,6 +95,7 @@
 #define ptp_read(addr)              (*(volatile u32 *)(addr))
 #define ptp_write(addr, val)        mt65xx_reg_sync_writel(val, addr)
 
+#ifdef YES_LOGSPAM
 #define ptp_emerg(fmt, args...)     printk(KERN_EMERG "[PTP] " fmt, ##args)
 #define ptp_alert(fmt, args...)     printk(KERN_ALERT "[PTP] " fmt, ##args)
 #define ptp_crit(fmt, args...)      printk(KERN_CRIT "[PTP] " fmt, ##args)
@@ -103,6 +104,16 @@
 #define ptp_notice(fmt, args...)    printk(KERN_NOTICE "[PTP] " fmt, ##args)
 #define ptp_info(fmt, args...)      printk(KERN_INFO "[PTP] " fmt, ##args)
 #define ptp_debug(fmt, args...)     printk(KERN_DEBUG "[PTP] " fmt, ##args)
+#else
+#define ptp_emerg(fmt, args...)
+#define ptp_alert(fmt, args...)
+#define ptp_crit(fmt, args...)
+#define ptp_error(fmt, args...)
+#define ptp_warning(fmt, args...)
+#define ptp_notice(fmt, args...)
+#define ptp_info(fmt, args...)
+#define ptp_debug(fmt, args...)
+#endif
 
 #if EN_ISR_LOG
 #define ptp_isr_info(fmt, args...)  ptp_notice( fmt, ##args)

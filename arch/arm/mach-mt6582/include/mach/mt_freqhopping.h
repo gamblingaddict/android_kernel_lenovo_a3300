@@ -30,6 +30,7 @@
 
 #define VERBOSE_DEBUG 0
 
+#ifdef YES_LOGSPAM
 #if VERBOSE_DEBUG
 #define FH_MSG(fmt, args...) \
 do {    \
@@ -52,6 +53,9 @@ do {    \
 } while(0);
 #endif
 
+#endif
+#else
+#define FH_MSG(fmt, args...)
 #endif
 
 enum FH_FH_STATUS{
