@@ -71,7 +71,7 @@ regs_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hc
 //        printk(KERN_ALERT "In hotplug callback\n");
 	int i;
         unsigned int cpu = (unsigned int) hcpu;
-        printk("regs_hotplug_callback cpu = %d\n", cpu);
+        //printk("regs_hotplug_callback cpu = %d\n", cpu);
         switch (action) {
         case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:

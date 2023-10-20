@@ -91,7 +91,7 @@ int L2CTLR_get_core_count(void){
     else
         cores = 2;
     
-    printk("[CORE] num:%d\n",cores);
+    //printk("[CORE] num:%d\n",cores);
     return cores;
 }
 
@@ -99,7 +99,7 @@ void __cpuinit mt_smp_secondary_init(unsigned int cpu)
 {
     struct wd_api *wd_api = NULL;
 
-    printk(KERN_INFO "Slave cpu init\n");
+    //printk(KERN_INFO "Slave cpu init\n");
     HOTPLUG_INFO("mt_smp_secondary_init, cpu: %d\n", cpu);
 
     mt_gic_secondary_init();
@@ -137,12 +137,12 @@ static void __cpuinit mt_wakeup_cpu(int cpu)
 #ifdef CONFIG_HOTPLUG_WITH_POWER_CTRL
     if (is_secondary_cpu_first_boot)
     {
-        printk("mt_wakeup_cpu: first boot!(%d)\n", cpu);
+        //printk("mt_wakeup_cpu: first boot!(%d)\n", cpu);
         --is_secondary_cpu_first_boot;
     }
     else
     {
-        printk("mt_wakeup_cpu: not first boot!(%d)\n", cpu);
+        //printk("mt_wakeup_cpu: not first boot!(%d)\n", cpu);
         mt65xx_reg_sync_writel(virt_to_phys(mt_secondary_startup), BOOT_ADDR);        
 #if defined(CONFIG_TRUSTONIC_TEE_SUPPORT)
         *((unsigned int*)NS_SLAVE_BOOT_ADDR) = virt_to_phys(mt_secondary_startup);
@@ -156,7 +156,7 @@ int __cpuinit mt_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
     unsigned long timeout;
 
-    printk(KERN_CRIT "Boot slave CPU\n");
+    //printk(KERN_CRIT "Boot slave CPU\n");
 
     atomic_inc(&hotplug_cpu_count);
 
@@ -191,7 +191,7 @@ int __cpuinit mt_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
 #if !defined (CONFIG_TRUSTONIC_TEE_SUPPORT)
             mt_wakeup_cpu(cpu);
 #else //#if !defined (CONFIG_TRUSTONIC_TEE_SUPPORT)
-            printk("mt_wakeup_cpu: not first boot!(%d)\n", cpu);
+            //printk("mt_wakeup_cpu: not first boot!(%d)\n", cpu);
             //mt65xx_reg_sync_writel(virt_to_phys(mt_secondary_startup), BOOT_ADDR);
             // fixme, to replace SMC with parameter of ns_slave_boot_addr
             mt_secure_call(MC_FC_SET_RESET_VECTOR, virt_to_phys(mt_secondary_startup), cpu, 0);
