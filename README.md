@@ -1,5 +1,5 @@
-###                                          Kernel Tree for Lenovo A3300
-# Working now:
+#                                          Kernel Tree for Lenovo A3300
+### Working now:
 1) KD079D1_MIPI4LVDS(rotated 90 degrees) LCM and NT51021B_MIPI_DSI(not tested)
 2) Touchscreen
 3) Sim Card
@@ -9,6 +9,6 @@
 7) OTG
 8) Accelerometer
 
-# Not working:
+### Not working:
 1) Cameras
 2) Headset
