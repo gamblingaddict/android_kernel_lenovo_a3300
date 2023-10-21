@@ -258,7 +258,7 @@ typedef enum _ENUM_DBG_MODULE_T {
 #define LOG_FUNC_TIME           kalPrint
 #define LOG_FUNC                kalPrint
 
-#if DBG
+#if DBG && defined(YES_LOGSPAM)
 
     #define TMP_BUF_LEN   256
     #define TMP_WBUF_LEN  (TMP_BUF_LEN * 2)
@@ -372,7 +372,7 @@ typedef enum _ENUM_DBG_MODULE_T {
     #define ERRORLOG(_Fmt)
     #define WARNLOG(_Fmt)
 
-#if defined(LINUX)
+#if defined(LINUX) && defined(YES_LOGSPAM)
     #define DBGLOG(_Module, _Class, _Fmt) \
     { \
         if (aucDebugModule[DBG_##_Module##_IDX] & DBG_CLASS_##_Class) { \
@@ -394,7 +394,7 @@ typedef enum _ENUM_DBG_MODULE_T {
     #define DBGLOG(_Module, _Class, _Fmt)
 #endif
 
-#if CFG_SUPPORT_XLOG
+#if CFG_SUPPORT_XLOG && defined(YES_LOGSPAM)
     #define DBGLOG_MEM8(_Module, _Class, _StartAddr, _Length) \
     { \
         _Module##_##_Class##_LOGFUNC (__FUNCTION__);\
