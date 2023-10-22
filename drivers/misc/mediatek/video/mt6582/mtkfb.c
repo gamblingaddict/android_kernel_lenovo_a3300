@@ -7,7 +7,6 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
-#include <linux/earlysuspend.h>
 #include <linux/kthread.h>
 #include <linux/rtpm_prio.h>
 #include <linux/vmalloc.h>
@@ -171,10 +170,8 @@ extern void hdmi_setorientation(int orientation);
 extern void	MTK_HDMI_Set_Security_Output(int enable);
 #endif
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void mtkfb_late_resume(struct early_suspend *h);
-static void mtkfb_early_suspend(struct early_suspend *h);
-#endif
+static void mtkfb_blank_resume();
+static void mtkfb_blank_suspend();
 
 #ifdef CONFIG_MTK_LCA_RAM_OPTIMIZE
 extern unsigned int get_phys_offset(void);
@@ -2190,11 +2187,10 @@ unsigned int mtkfb_fm_auto_test()
 
 static int mtkfb_blank(int blank_mode, struct fb_info *info)
 {
-#ifdef CONFIG_HAS_EARLYSUSPEND
     switch (blank_mode) {
     case FB_BLANK_UNBLANK:
     case FB_BLANK_NORMAL:
-        mtkfb_late_resume(NULL);
+        mtkfb_blank_resume(NULL);
         if (!lcd_fps)
         {
             msleep(30);
@@ -2214,15 +2210,12 @@ static int mtkfb_blank(int blank_mode, struct fb_info *info)
     case FB_BLANK_HSYNC_SUSPEND:
         break;
     case FB_BLANK_POWERDOWN:
-        mtkfb_early_suspend(NULL);
+        mtkfb_blank_suspend(NULL);
         break;
     default:
         return -EINVAL;
         }
     return 0;
-#else
-    return -EINVAL;
-#endif
 }
 
 /* Callback table for the frame buffer framework. Some of these pointers
@@ -3038,8 +3031,7 @@ int hdmi_conn_disp_path(void)
 	return 0;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void mtkfb_early_suspend(struct early_suspend *h)
+static void mtkfb_blank_suspend()
 {
     int i=0;
     MSG_FUNC_ENTER();
@@ -3108,7 +3100,6 @@ static void mtkfb_early_suspend(struct early_suspend *h)
 
     MSG_FUNC_LEAVE();
 }
-#endif
 
 /* PM resume */
 static int mtkfb_resume(struct device *pdev)
@@ -3120,8 +3111,7 @@ static int mtkfb_resume(struct device *pdev)
     return 0;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void mtkfb_late_resume(struct early_suspend *h)
+static void mtkfb_blank_resume()
 {
     MSG_FUNC_ENTER();
 
@@ -3177,7 +3167,6 @@ static void mtkfb_late_resume(struct early_suspend *h)
 
     MSG_FUNC_LEAVE();
 }
-#endif
 
 /*---------------------------------------------------------------------------*/
 #ifdef CONFIG_PM
