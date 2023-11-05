@@ -16,9 +16,6 @@
 #include <linux/reboot.h>
 #include <linux/xlog.h>
 #include <linux/mtk_ftrace.h>
-#if !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG) && !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_BALANCE)
-#include <mach/mt_hotplug_strategy.h>
-#endif
 
 #define HIB_CORE_DEBUG 0
 #define _TAG_HIB_M "HIB/CORE"
@@ -82,8 +79,10 @@ static int hibernation_failed_action = HIB_FAILED_TO_S2RAM;
 #define MAX_HIB_FAILED_CNT 5
 static int hib_failed_cnt = 0;
 
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_GOV_BALANCE)
+
 #define HIB_UNPLUG_CORES	/* force unplug cores before hibernation flow */
-#if defined(HIB_UNPLUG_CORES) && defined(CONFIG_HOTPLUG_CPU)
+#ifdef HIB_UNPLUG_CORES
 #define HIB_MULTIIO_CORES (1)
 static void hib_unplug_cores(void)
 {
@@ -91,7 +90,7 @@ static void hib_unplug_cores(void)
 
 	hib_warn("unplug cores\n");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG
+#ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
 	mutex_lock(&hp_onoff_mutex);
 #endif
 	for (i = (num_possible_cpus() - 1); i > 0 && num_online_cpus() > HIB_MULTIIO_CORES; i--) {
@@ -106,7 +105,7 @@ static void hib_unplug_cores(void)
 			}
 		}
 	}
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG
+#ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
 	mutex_unlock(&hp_onoff_mutex);
 #endif
 }
@@ -123,26 +122,23 @@ static void hib_hotplug_mode(int en)
 	if (en) {
 		if (1 == g_hp_disable) {
 			hib_warn("enable hotplug\n");
-#if defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_BALANCE)
 			hp_set_dynamic_cpu_hotplug_enable(1);
-#else
-			hps_set_enabled(1);
-#endif
 			g_hp_disable = 0;
 		}
 	} else if (!en) {
 		if (0 == g_hp_disable) {
 			hib_warn("disable hotplug\n");
-#if defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_BALANCE)
 			hp_set_dynamic_cpu_hotplug_enable(0);
-#else
-			hps_set_enabled(0);
-#endif
 			hib_unplug_cores();
 			g_hp_disable = 1;
 		}
 	}
 }
+#else				/* !(CONFIG_CPU_FREQ_GOV_HOTPLUG || CONFIG_CPU_FREQ_GOV_BALANCE) */
+static inline void hib_hotplug_mode(int en)
+{
+}
+#endif				/* CONFIG_CPU_FREQ_GOV_HOTPLUG || CONFIG_CPU_FREQ_GOV_BALANCE */
 
 static void hib_ftrace_buffer(int en)
 {
