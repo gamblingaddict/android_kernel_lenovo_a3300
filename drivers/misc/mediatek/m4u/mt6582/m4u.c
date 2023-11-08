@@ -1,8 +1,22 @@
-#include <linux/module.h>
+/*
+* Copyright (C) 2011-2014 MediaTek Inc.
+* 
+* This program is free software: you can redistribute it and/or modify it under the terms of the 
+* GNU General Public License version 2 as published by the Free Software Foundation.
+* 
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <linux/spinlock.h>
 #include <linux/xlog.h>
 #include <asm/cacheflush.h>
 #include <linux/printk.h>
+#include <linux/module.h>
 
 #include <mach/m4u.h>
 #include "m4u_reg.h"
@@ -24,18 +38,6 @@ int m4u_power_off(int m4u_index)
 {
     return 0;
 }
-
-// query mva by va
-int m4u_query_mva(M4U_MODULE_ID_ENUM eModuleID, 
-								  const unsigned int BufAddr, 
-								  const unsigned int BufSize, 
-								  unsigned int *pRetMVABuf,
-								  struct file * a_pstFile) 
-{
-    return __m4u_query_mva(eModuleID, BufAddr, BufSize, pRetMVABuf, a_pstFile);
-}
-
-
 
 int m4u_alloc_mva(M4U_MODULE_ID_ENUM eModuleID, 
 								  const unsigned int BufAddr, 
@@ -130,16 +132,6 @@ int m4u_invalid_seq_range(M4U_MODULE_ID_ENUM eModuleID, unsigned int MVAStart, u
 
 }
 
-
-
-int m4u_insert_wrapped_range(M4U_MODULE_ID_ENUM eModuleID, 
-                             M4U_PORT_ID_ENUM portID, 
-                             unsigned int MVAStart, 
-                             unsigned int MVAEnd)
-{
-    return 0;
-}
-
 int m4u_invalid_wrapped_range(M4U_MODULE_ID_ENUM eModuleID, 
                               M4U_PORT_ID_ENUM portID,
                               unsigned int MVAStart, 
@@ -148,22 +140,12 @@ int m4u_invalid_wrapped_range(M4U_MODULE_ID_ENUM eModuleID,
     return 0;
 }
 
-int m4u_check_port_va_or_pa(M4U_PORT_STRUCT* pM4uPort) {
-   return m4u_do_check_port_va_or_pa(pM4uPort);
-}
+
 
 int m4u_config_port(M4U_PORT_STRUCT* pM4uPort) //native
 {
     return m4u_do_config_port(pM4uPort);
 }
-
-
-int m4u_config_port_rotator(M4U_PORT_STRUCT_ROTATOR *pM4uPort)
-{ 
-
-    return 0;
-}
-
 
 int m4u_monitor_start(int m4u_id)
 {
@@ -184,7 +166,7 @@ int m4u_dma_cache_maint(M4U_MODULE_ID_ENUM eModuleID, const void *start, size_t 
 
 
 extern void  smp_inner_dcache_flush_all(void);
-int m4u_dma_cache_flush_all()
+int m4u_dma_cache_flush_all(void)
 {
 
    // M4UMSG("cache flush all!!\n")

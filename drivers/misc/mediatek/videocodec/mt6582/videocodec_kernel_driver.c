@@ -1,3 +1,17 @@
+/*
+* Copyright (C) 2011-2014 MediaTek Inc.
+*
+* This program is free software: you can redistribute it and/or modify it under the terms of the
+* GNU General Public License version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -20,6 +34,7 @@
 #include <linux/wait.h>
 #include <linux/proc_fs.h>
 #include <linux/semaphore.h>
+#include <linux/android_pmem.h>
 #include <mach/dma.h>
 #include <linux/delay.h>
 #include <linux/earlysuspend.h>
@@ -45,8 +60,7 @@
 #define VDO_HW_READ(ptr)           (*((volatile unsigned int * const)(ptr)))
 
 #define VCODEC_DEVNAME     "Vcodec"
-#define MT6582_VCODEC_DEV_MAJOR_NUMBER 160   //189
-//#define VDEC_USE_L2C
+#define MT6582_VCODEC_DEV_MAJOR_NUMBER 160
 
 static dev_t vcodec_devno = MKDEV(MT6582_VCODEC_DEV_MAJOR_NUMBER,0);
 static struct cdev *vcodec_cdev;
@@ -59,13 +73,10 @@ static DEFINE_MUTEX(PWRLock);
 static DEFINE_MUTEX(VdecHWLock);
 static DEFINE_MUTEX(VencHWLock);
 static DEFINE_MUTEX(EncEMILock);
-static DEFINE_MUTEX(L2CLock);
 static DEFINE_MUTEX(DecEMILock);
 static DEFINE_MUTEX(DriverOpenCountLock);
 static DEFINE_MUTEX(DecHWLockEventTimeoutLock);
 static DEFINE_MUTEX(EncHWLockEventTimeoutLock);
-static DEFINE_MUTEX(VdecPWRLock);
-static DEFINE_MUTEX(VencPWRLock);
 static DEFINE_MUTEX(NonCacheMemoryListLock);
 
 static DEFINE_SPINLOCK(DecIsrLock);
@@ -84,17 +95,10 @@ static int MT6582Driver_Open_Count;         //mutex : DriverOpenCountLock
 static VAL_UINT32_T gu4PWRCounter = 0;      //mutex : PWRLock
 static VAL_UINT32_T gu4EncEMICounter = 0;   //mutex : EncEMILock
 static VAL_UINT32_T gu4DecEMICounter = 0;   //mutex : DecEMILock
-static VAL_UINT32_T gu4L2CCounter = 0;      //mutex : L2CLock
 static VAL_BOOL_T bIsOpened = VAL_FALSE;    //mutex : IsOpenedLock
 static VAL_UINT32_T gu4HwVencIrqStatus = 0; //hardware VENC IRQ status (VP8/H264)
 
-static VAL_UINT32_T gu4VdecPWRCounter = 0;  //mutex : VdecPWRLock
-static VAL_UINT32_T gu4VencPWRCounter = 0;  //mutex : VencPWRLock
-
 static VAL_UINT32_T gLockTimeOutCount = 0;
-
-static VAL_UINT32_T gu4VdecLockThreadId = 0;
-
 //#define MT6582_VCODEC_DEBUG
 #ifdef MT6582_VCODEC_DEBUG
 #undef VCODEC_DEBUG
@@ -138,7 +142,6 @@ static VAL_UINT32_T gu4VdecLockThreadId = 0;
 #define CLK_CFG_4_addr      0x10000150
 #define VENC_PWR_addr       0x10006230
 #define VENCSYS_CG_SET_addr 0x15000004
-
 
 #define PWR_ONS_1_D     3
 #define PWR_CKD_1_D     4
@@ -184,45 +187,22 @@ extern int config_L2(int size);
 
 void vdec_power_on(void)
 {
-    mutex_lock(&VdecPWRLock);
-    gu4VdecPWRCounter++;
-    mutex_unlock(&VdecPWRLock);
-
     // Central power on
     enable_clock(MT_CG_DISP0_SMI_COMMON, "VDEC");
     enable_clock(MT_CG_VDEC0_VDEC, "VDEC");
     enable_clock(MT_CG_VDEC1_LARB, "VDEC");
-#ifdef VDEC_USE_L2C
-    enable_clock(MT_CG_INFRA_L2C_SRAM, "VDEC");
-#endif
 }
 
 void vdec_power_off(void)
 {
-    mutex_lock(&VdecPWRLock);
-    if (gu4VdecPWRCounter == 0)
-    {
-    }
-    else
-    {
-        gu4VdecPWRCounter--;
-        // Central power off
-        disable_clock(MT_CG_VDEC0_VDEC, "VDEC");
-        disable_clock(MT_CG_VDEC1_LARB, "VDEC");
-        disable_clock(MT_CG_DISP0_SMI_COMMON, "VDEC");
-#ifdef VDEC_USE_L2C
-        disable_clock(MT_CG_INFRA_L2C_SRAM, "VDEC");
-#endif
-    }
-    mutex_unlock(&VdecPWRLock);
+    // Central power off
+    disable_clock(MT_CG_VDEC0_VDEC, "VDEC");
+    disable_clock(MT_CG_VDEC1_LARB, "VDEC");
+    disable_clock(MT_CG_DISP0_SMI_COMMON, "VDEC");
 }
 
 void venc_power_on(void)
 {
-    mutex_lock(&VencPWRLock);
-    gu4VencPWRCounter++;
-    mutex_unlock(&VencPWRLock);
-
     MFV_LOGD("venc_power_on +\n");
 #ifdef VENC_PWR_FPGA
     // Cheng-Jung 20120621 VENC power physical base address (FPGA only, should use API) [
@@ -250,21 +230,13 @@ void venc_power_on(void)
 
 void venc_power_off(void)
 {
-    mutex_lock(&VencPWRLock);
-    if (gu4VencPWRCounter == 0)
-    {
-    }
-    else
-    {
-        gu4VencPWRCounter--;
-        MFV_LOGD("venc_power_off +\n");
-        disable_clock(MT_CG_IMAGE_VENC_JPENC, "VENC");
-        disable_clock(MT_CG_IMAGE_LARB2_SMI, "VENC");
-        disable_clock(MT_CG_DISP0_SMI_COMMON, "VENC");
-        MFV_LOGD("venc_power_off -\n");
-    }
-    mutex_unlock(&VencPWRLock);
+    MFV_LOGD("venc_power_off +\n");
+    disable_clock(MT_CG_IMAGE_VENC_JPENC, "VENC");
+    disable_clock(MT_CG_IMAGE_LARB2_SMI, "VENC");
+    disable_clock(MT_CG_DISP0_SMI_COMMON, "VENC");
+    MFV_LOGD("venc_power_off -\n");
 }
+
 
 void dec_isr(void)
 {
@@ -433,7 +405,6 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
     VAL_INT32_T temp_nr_cpu_ids;
     VAL_POWER_T rPowerParam;
     VAL_MEMORY_T rTempMem;
-    VAL_INT32_T i4Index = 0;
 #if 0
     VCODEC_DRV_CMD_QUEUE_T rDrvCmdQueue;
     P_VCODEC_DRV_CMD_T cmd_queue = VAL_NULL;
@@ -469,10 +440,8 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 (unsigned int)rTempMem.u4ReservedSize, (unsigned int)rTempMem.pvMemPa, (unsigned int)rTempMem.u4MemSize);
 
             mutex_lock(&NonCacheMemoryListLock);
-            i4Index = Add_NonCacheMemoryList(rTempMem.u4ReservedSize, (VAL_UINT32_T)rTempMem.pvMemPa, (VAL_UINT32_T)rTempMem.u4MemSize, 0, 0);
+            Add_NonCacheMemoryList(rTempMem.u4ReservedSize, (VAL_UINT32_T)rTempMem.pvMemPa, (VAL_UINT32_T)rTempMem.u4MemSize, 0, 0);
             mutex_unlock(&NonCacheMemoryListLock);
-
-            // TODO: handle Add_NonCacheMemoryList fail case - need test with codec lib
 
             ret = copy_to_user(user_data_addr, &rTempMem, sizeof(VAL_MEMORY_T));
             if(ret)
@@ -495,14 +464,11 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 return -EFAULT;
             }
 
-            mutex_lock(&NonCacheMemoryListLock);
-            i4Index = Free_NonCacheMemoryList(rTempMem.u4ReservedSize, (VAL_UINT32_T)rTempMem.pvMemPa);
-            mutex_unlock(&NonCacheMemoryListLock);
+            dma_free_coherent(0, rTempMem.u4MemSize, (void *)rTempMem.u4ReservedSize, (dma_addr_t)rTempMem.pvMemPa);
 
-            if (i4Index > -1)
-            {
-                dma_free_coherent(0, rTempMem.u4MemSize, (void *)rTempMem.u4ReservedSize, (dma_addr_t)rTempMem.pvMemPa);
-            }
+            mutex_lock(&NonCacheMemoryListLock);
+            Free_NonCacheMemoryList(rTempMem.u4ReservedSize, (VAL_UINT32_T)rTempMem.pvMemPa);
+            mutex_unlock(&NonCacheMemoryListLock);
 
             rTempMem.u4ReservedSize = 0;
             rTempMem.pvMemPa = NULL;
@@ -527,9 +493,9 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
             ret = copy_to_user(user_data_addr, &gu4DecEMICounter, sizeof(VAL_UINT32_T));
             if (ret)
             {
-            	MFV_LOGE("[ERROR] VCODEC_INC_DEC_EMI_USER, copy_to_user failed: %d\n", ret);
+                MFV_LOGE("[ERROR] VCODEC_INC_DEC_EMI_USER, copy_to_user failed: %d\n", ret);
                 mutex_unlock(&DecEMILock);
-            	return -EFAULT;
+                return -EFAULT;
             }
             mutex_unlock(&DecEMILock);
 
@@ -541,14 +507,14 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
             mutex_lock(&DecEMILock);
             gu4DecEMICounter--;
-            MFV_LOGE("DEC_EMI_USER = %d\n", gu4DecEMICounter);
+            MFV_LOGE("DEC_EMI_USER = %u\n", gu4DecEMICounter);
             user_data_addr = (VAL_UINT8_T *)arg;
             ret = copy_to_user(user_data_addr, &gu4DecEMICounter, sizeof(VAL_UINT32_T));
             if (ret)
             {
-            	MFV_LOGE("[ERROR] VCODEC_DEC_DEC_EMI_USER, copy_to_user failed: %d\n", ret);
+                MFV_LOGE("[ERROR] VCODEC_DEC_DEC_EMI_USER, copy_to_user failed: %d\n", ret);
                 mutex_unlock(&DecEMILock);
-            	return -EFAULT;
+                return -EFAULT;
             }
             mutex_unlock(&DecEMILock);
 
@@ -560,7 +526,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
             mutex_lock(&EncEMILock);
             gu4EncEMICounter++;
-            MFV_LOGE("ENC_EMI_USER = %d\n", gu4EncEMICounter);
+            MFV_LOGE("ENC_EMI_USER = %u\n", gu4EncEMICounter);
             user_data_addr = (VAL_UINT8_T *)arg;
             ret = copy_to_user(user_data_addr, &gu4EncEMICounter, sizeof(VAL_UINT32_T));
             if (ret) {
@@ -578,7 +544,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
             mutex_lock(&EncEMILock);
             gu4EncEMICounter--;
-            MFV_LOGE("ENC_EMI_USER = %d\n", gu4EncEMICounter);
+            MFV_LOGE("ENC_EMI_USER = %u\n", gu4EncEMICounter);
             user_data_addr = (VAL_UINT8_T *)arg;
             ret = copy_to_user(user_data_addr, &gu4EncEMICounter, sizeof(VAL_UINT32_T));
             if (ret) {
@@ -635,8 +601,8 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                     mutex_lock(&VdecHWLock);
                     // one process try to lock twice
                     if (grVcodecDecHWLock.pvHandle == (VAL_VOID_T*)pmem_user_v2p_video((unsigned int)rHWLock.pvHandle)) {
-                        MFV_LOGE("[WARNING] one decoder instance try to lock twice, may cause lock HW timeout!! instance = 0x%lx, CurrentTID = %d\n",
-                            (VAL_ULONG_T)grVcodecDecHWLock.pvHandle, current->pid);
+                        MFV_LOGE("[WARNING] one decoder instance try to lock twice, may cause lock HW timeout!! instance = 0x%p, CurrentTID = %d\n",
+                            grVcodecDecHWLock.pvHandle, current->pid);
                     }
                     mutex_unlock(&VdecHWLock);
 
@@ -660,14 +626,12 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                     }
                     else if (VAL_RESULT_RESTARTSYS == eValRet)
                     {
-                        MFV_LOGE("[WARNING] VAL_RESULT_RESTARTSYS return when HWLock!!\n");
                         return -ERESTARTSYS;
                     }
 
                     mutex_lock(&VdecHWLock);
                     if (grVcodecDecHWLock.pvHandle == 0) // No one holds dec hw lock now
                     {
-                        gu4VdecLockThreadId = current->pid;
                         grVcodecDecHWLock.pvHandle = (VAL_VOID_T*)pmem_user_v2p_video((unsigned int)rHWLock.pvHandle);
                         grVcodecDecHWLock.eDriverType = rHWLock.eDriverType;
                         eVideoGetTimeOfDay(&grVcodecDecHWLock.rLockedTime, sizeof(VAL_TIME_T));
@@ -677,17 +641,12 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                             grVcodecDecHWLock.pvHandle, current->pid, grVcodecDecHWLock.rLockedTime.u4Sec, grVcodecDecHWLock.rLockedTime.u4uSec);
 
                         bLockedHW = VAL_TRUE;
-                       if (VAL_RESULT_INVALID_ISR == eValRet && FirstUseDecHW != 1) {
-                            MFV_LOGE("[WARNING] reset power/irq when HWLock!!\n");
-                            vdec_power_off();
-                            disable_irq(MT_VDEC_IRQ_ID);
-                        }
                         vdec_power_on();
                         enable_irq(MT_VDEC_IRQ_ID);
                     }
                     else // Another one holding dec hw now
                     {
-                        MFV_LOGE("[NOT ERROR][VCODEC_LOCKHW] E\n");
+                    MFV_LOGE("[NOT ERROR][VCODEC_LOCKHW] E\n");
                         eVideoGetTimeOfDay(&rCurTime, sizeof(VAL_TIME_T));
                         u4TimeInterval = (((((rCurTime.u4Sec - grVcodecDecHWLock.rLockedTime.u4Sec) * 1000000) + rCurTime.u4uSec)
                             - grVcodecDecHWLock.rLockedTime.u4uSec) / 1000);
@@ -696,8 +655,8 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                         MFV_LOGD("Instance = 0x%x CurrentTID = %d, TimeInterval(ms) = %d, TimeOutValue(ms)) = %d\n",
                             grVcodecDecHWLock.pvHandle, current->pid, u4TimeInterval, rHWLock.u4TimeoutMs);
 
-                        MFV_LOGD("Instance = 0x%x, Lock TID = %d, CurrentTID = %d, rLockedTime(s, us) = %d, %d, rCurTime(s, us) = %d, %d\n",
-                            grVcodecDecHWLock.pvHandle, gu4VdecLockThreadId, current->pid,
+                        MFV_LOGD("Instance = 0x%x, CurrentTID = %d, rLockedTime(s, us) = %d, %d, rCurTime(s, us) = %d, %d\n",
+                            grVcodecDecHWLock.pvHandle, current->pid,
                             grVcodecDecHWLock.rLockedTime.u4Sec, grVcodecDecHWLock.rLockedTime.u4uSec,
                             rCurTime.u4Sec, rCurTime.u4uSec
                             );
@@ -771,8 +730,8 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                     mutex_lock(&VencHWLock);
                     // one process try to lock twice
                     if (grVcodecEncHWLock.pvHandle == (VAL_VOID_T*)pmem_user_v2p_video((unsigned int)rHWLock.pvHandle)) {
-                        MFV_LOGE("[WARNING] one encoder instance try to lock twice, may cause lock HW timeout!! instance = 0x%lx, CurrentTID = %d, type:%d\n",
-                            (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, current->pid, rHWLock.eDriverType);
+                        MFV_LOGE("[WARNING] one encoder instance try to lock twice, may cause lock HW timeout!! instance = 0x%p, CurrentTID = %d, type:%d\n",
+                            grVcodecEncHWLock.pvHandle, current->pid, rHWLock.eDriverType);
                     }
                     mutex_unlock(&VencHWLock);
 
@@ -788,11 +747,11 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                                 MFV_LOGE("[WARNING] maybe mediaserver restart before, please check!!\n");
                             }
                             else {
-                                MFV_LOGE("[WARNING] someone use HW, and check timeout value!! %d\n", gLockTimeOutCount);
+                                MFV_LOGE("[WARNING] someone use HW, and check timeout value!! %u\n", gLockTimeOutCount);
                                 ++gLockTimeOutCount;
                                 if (gLockTimeOutCount > 30)
                                 {
-                                    MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW time out more than 30 times %lx, %lx, %lx, type:%d\n", current->pid, (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, (VAL_ULONG_T)pmem_user_v2p_video((VAL_ULONG_T)rHWLock.pvHandle), (VAL_ULONG_T)rHWLock.pvHandle, rHWLock.eDriverType);
+                                    MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW time out more than 30 times %p, %x, %p, type:%d\n", current->pid, grVcodecEncHWLock.pvHandle, pmem_user_v2p_video((unsigned int)rHWLock.pvHandle), rHWLock.pvHandle, rHWLock.eDriverType);
                                     gLockTimeOutCount = 0;
                                     mutex_unlock(&VencHWLock);
                                     return -EFAULT;
@@ -800,7 +759,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
                                 if (rHWLock.u4TimeoutMs == 0)
                                 {
-                                    MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW already %lx, %lx, %lx, type:%d\n", current->pid, (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, (VAL_ULONG_T)pmem_user_v2p_video((VAL_ULONG_T)rHWLock.pvHandle), (VAL_ULONG_T)rHWLock.pvHandle, rHWLock.eDriverType);
+                                    MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW already %p, %x, %p, type:%d\n", current->pid, grVcodecEncHWLock.pvHandle, pmem_user_v2p_video((unsigned int)rHWLock.pvHandle), rHWLock.pvHandle, rHWLock.eDriverType);
                                     gLockTimeOutCount = 0;
                                     mutex_unlock(&VencHWLock);
                                     return -EFAULT;
@@ -808,10 +767,6 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                             }
                             mutex_unlock(&VencHWLock);
                         }
-                    }
-                    else if (VAL_RESULT_RESTARTSYS == eValRet)
-                    {
-                        return -ERESTARTSYS;
                     }
 
                     mutex_lock(&VencHWLock);
@@ -863,7 +818,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                         ++gLockTimeOutCount;
                         if (gLockTimeOutCount > 30)
                         {
-                            MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW over 30 times without timeout %lx, %lx, %lx, type:%d\n", current->pid, (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, (VAL_ULONG_T)pmem_user_v2p_video((VAL_ULONG_T)rHWLock.pvHandle), (VAL_ULONG_T)rHWLock.pvHandle, rHWLock.eDriverType);
+                            MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW over 30 times without timeout %p, %x, %p, type:%d\n", current->pid, grVcodecEncHWLock.pvHandle, pmem_user_v2p_video((unsigned int)rHWLock.pvHandle), rHWLock.pvHandle, rHWLock.eDriverType);
                             gLockTimeOutCount = 0;
                             mutex_unlock(&VencHWLock);
                             return -EFAULT;
@@ -894,7 +849,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
                     if (VAL_TRUE == bLockedHW)
                     {
-                        MFV_LOGE("Lock ok grVcodecEncHWLock.pvHandle = 0x%lx, va:%lx, type:%d", (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, (VAL_ULONG_T)rHWLock.pvHandle, rHWLock.eDriverType);
+                        MFV_LOGE("Lock ok grVcodecEncHWLock.pvHandle = 0x%p, va:%p, type:%d", grVcodecEncHWLock.pvHandle, rHWLock.pvHandle, rHWLock.eDriverType);
                         gLockTimeOutCount = 0;
                     }
                     mutex_unlock(&VencHWLock);
@@ -902,7 +857,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
                 if (VAL_FALSE == bLockedHW)
                 {
-                    MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW already , %lx, %lx, %lx, type:%d\n", current->pid, (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, (VAL_ULONG_T)pmem_user_v2p_video((VAL_ULONG_T)rHWLock.pvHandle), (VAL_ULONG_T)rHWLock.pvHandle, rHWLock.eDriverType);
+                    MFV_LOGE("VCODEC_LOCKHW - ID %d  fail, someone locked HW already , %p, %x, %p, type:%d\n", current->pid, grVcodecEncHWLock.pvHandle, pmem_user_v2p_video((unsigned int)rHWLock.pvHandle), rHWLock.pvHandle, rHWLock.eDriverType);
                     gLockTimeOutCount = 0;
                     return -EFAULT;
                 }
@@ -973,7 +928,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 else // Not current owner
                 {
                     // [TODO] error handling
-                    MFV_LOGE("[ERROR] Not owner trying to unlock enc hardware 0x%lx, pa:%lx, va:%lx type:%d\n", (VAL_ULONG_T)grVcodecEncHWLock.pvHandle, (VAL_ULONG_T) pmem_user_v2p_video((VAL_ULONG_T)rHWLock.pvHandle), (VAL_ULONG_T)rHWLock.pvHandle, rHWLock.eDriverType);
+                    MFV_LOGE("[ERROR] Not owner trying to unlock enc hardware 0x%p, pa:%x, va:%p type:%d\n", grVcodecEncHWLock.pvHandle, pmem_user_v2p_video((unsigned int)rHWLock.pvHandle), rHWLock.pvHandle, rHWLock.eDriverType);
                     mutex_unlock(&VencHWLock);
                     return -EFAULT;
                 }
@@ -997,30 +952,6 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 return -EFAULT;
             }
             MFV_LOGD("INC_PWR_USER eDriverType = %d\n", rPowerParam.eDriverType);
-            mutex_lock(&L2CLock);
-            if (rPowerParam.eDriverType == VAL_DRIVER_TYPE_H264_DEC ||
-                rPowerParam.eDriverType == VAL_DRIVER_TYPE_MP4_DEC)
-            {
-                gu4L2CCounter++;
-                MFV_LOGD("INC_PWR_USER L2C counter = %d\n", gu4L2CCounter);
-            }
-#ifdef VDEC_USE_L2C
-            if (1 == gu4L2CCounter)
-            {
-                if (config_L2(SZ_256K))
-                {
-                    MFV_LOGE("[MFV][ERROR] Switch L2C size to 256K failed\n");
-                    mutex_unlock(&L2CLock);
-                    return -EFAULT;
-                }
-                else
-                {
-                    MFV_LOGD("[MFV][ERROR] Switch L2C size to 256K successful\n");
-                }
-            }
-#endif
-            mutex_unlock(&L2CLock);
-
             MFV_LOGD("[MT6582] VCODEC_INC_PWR_USER - tid = %d\n", current->pid);
         break;
 
@@ -1033,30 +964,6 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 return -EFAULT;
             }
             MFV_LOGD("DEC_PWR_USER eDriverType = %d\n", rPowerParam.eDriverType);
-
-            mutex_lock(&L2CLock);
-            if (rPowerParam.eDriverType == VAL_DRIVER_TYPE_H264_DEC ||
-                rPowerParam.eDriverType == VAL_DRIVER_TYPE_MP4_DEC)
-            {
-                gu4L2CCounter--;
-                MFV_LOGD("DEC_PWR_USER L2C counter  = %d\n", gu4L2CCounter);
-            }
-#ifdef VDEC_USE_L2C
-            if (0 == gu4L2CCounter)
-            {
-                if (config_L2(SZ_512K))
-                {
-                    MFV_LOGE("[MFV][ERROR] Switch L2C size to 512K failed\n");
-                    mutex_unlock(&L2CLock);
-                    return -EFAULT;
-                }
-                else
-                {
-                    MFV_LOGD("[MFV][ERROR] Switch L2C size to 512K successful\n");
-                }
-            }
-#endif
-            mutex_unlock(&L2CLock);
             MFV_LOGD("[MT6582] VCODEC_DEC_PWR_USER - tid = %d\n", current->pid);
         break;
 
@@ -1098,11 +1005,6 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 {
                     return -2;
                 }
-                else if (VAL_RESULT_RESTARTSYS == eValRet)
-                {
-                    MFV_LOGE("[WARNING] VAL_RESULT_RESTARTSYS return when WAITISR!!\n");
-                    return -ERESTARTSYS;
-                }
             }
             else if (val_isr.eDriverType == VAL_DRIVER_TYPE_H264_ENC)
             {
@@ -1118,7 +1020,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
                 if (bLockedHW == VAL_FALSE)
                 {
-                    MFV_LOGE("[ERROR] DO NOT have enc HWLock, so return fail pa:%lx, va:%lx\n", (VAL_ULONG_T)pmem_user_v2p_video((VAL_ULONG_T)val_isr.pvHandle), (VAL_ULONG_T)val_isr.pvHandle);
+                    MFV_LOGE("[ERROR] DO NOT have enc HWLock, so return fail pa:%x, va:%p\n", pmem_user_v2p_video((unsigned int)val_isr.pvHandle), val_isr.pvHandle);
                     break;
                 }
 
@@ -1130,11 +1032,6 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 if(VAL_RESULT_INVALID_ISR == eValRet)
                 {
                     return -2;
-                }
-                else if (VAL_RESULT_RESTARTSYS == eValRet)
-                {
-                    MFV_LOGE("[WARNING] VAL_RESULT_RESTARTSYS return when WAITISR!!\n");
-                    return -ERESTARTSYS;
                 }
 
                 if (val_isr.u4IrqStatusNum > 0)
@@ -1178,19 +1075,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
 
             MFV_LOGD("[MT6582] VCODEC_GET_CPU_LOADING_INFO +\n");
             user_data_addr = (VAL_UINT8_T *)arg;
-            // TODO:
-#if 1 // Morris Yang update for multi-core
-            VAL_UINT8_T cpu_id;
-            //MFV_LOGE("[MT6582] VCODEC_GET_CPU_LOADING_INFO num_possible_cpus(%d)\n", num_possible_cpus());
-            for (cpu_id = 0 ; cpu_id < num_possible_cpus()  ; cpu_id++) {
-                _temp._cpu_idle_time += mt_get_cpu_idle(cpu_id);
-                _temp._thread_cpu_time += mt_get_thread_cputime(cpu_id);
-            }
-            //spin_lock_irqsave(&OalHWContextLock, ulFlags);
-            //_temp._inst_count = getCurInstanceCount();
-            //spin_unlock_irqrestore(&OalHWContextLock, ulFlags);
-            _temp._sched_clock = mt_sched_clock();
-#endif
+            // TODO: Not required for MT6582 HW codec
             ret = copy_to_user(user_data_addr, &_temp, sizeof(VAL_VCODEC_CPU_LOADING_INFO_T));
             if (ret) {
                 MFV_LOGE("[ERROR] VCODEC_GET_CPU_LOADING_INFO, copy_to_user failed: %d\n", ret);
@@ -1212,7 +1097,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 MFV_LOGE("[ERROR] VCODEC_GET_CORE_LOADING, copy_from_user failed: %d\n", ret);
                 return -EFAULT;
             }
-            rTempCoreLoading.Loading = get_cpu_load(rTempCoreLoading.CPUid);
+            rTempCoreLoading.Loading = 0; // Never used on this platform, always return 0
             ret = copy_to_user(user_data_addr, &rTempCoreLoading, sizeof(VAL_VCODEC_CORE_LOADING_T));
             if (ret) {
                 MFV_LOGE("[ERROR] VCODEC_GET_CORE_LOADING, copy_to_user failed: %d\n", ret);
@@ -1246,8 +1131,7 @@ static long vcodec_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned 
                 return -EFAULT;
             }
             MFV_LOGE("+VCODEC_SET_CPU_OPP_LIMIT (%d, %d, %d), tid = %d\n", rCpuOppLimit.limited_freq, rCpuOppLimit.limited_cpu, rCpuOppLimit.enable, current->pid);
-            // TODO: Check if cpu_opp_limit is available
-            //ret = cpu_opp_limit(EVENT_VIDEO, rCpuOppLimit.limited_freq, rCpuOppLimit.limited_cpu, rCpuOppLimit.enable); // 0: PASS, other: FAIL
+            // TODO: Check if cpu_opp_limit is available, not required for MT6582 HW codec
             if (ret) {
                 MFV_LOGE("[ERROR] cpu_opp_limit failed: %d\n", ret);
                 return -EFAULT;
@@ -1353,27 +1237,19 @@ static int vcodec_open(struct inode *inode, struct file *file)
 
 static int vcodec_flush(struct file *file, fl_owner_t id)
 {
-    MFV_LOGD("[VCODEC_DEBUG] vcodec_flush, curr_tid =%d\n", current->pid);
-
-    return 0;
-}
-
-static int vcodec_release(struct inode *inode, struct file *file)
-{
     unsigned long ulFlagsLockHW, ulFlagsISR;
     int i, j;
 
     //dump_stack();
-    MFV_LOGD("[VCODEC_DEBUG] vcodec_release, curr_tid =%d\n", current->pid);
+    MFV_LOGD("[VCODEC_DEBUG] vcodec_flush, curr_tid =%d\n", current->pid);
     mutex_lock(&DriverOpenCountLock);
-    MFV_LOGE("vcodec_release pid = %d, MT6582Driver_Open_Count %d\n", current->pid, MT6582Driver_Open_Count);
+    MFV_LOGE("vcodec_flush pid = %d, MT6582Driver_Open_Count %d\n", current->pid, MT6582Driver_Open_Count);
 
     MT6582Driver_Open_Count--;
 
     if (MT6582Driver_Open_Count == 0) {
 
         mutex_lock(&VdecHWLock);
-        gu4VdecLockThreadId = 0;
         grVcodecDecHWLock.pvHandle = 0;
         grVcodecDecHWLock.eDriverType = VAL_DRIVER_TYPE_NONE;
         grVcodecDecHWLock.rLockedTime.u4Sec = 0;
@@ -1398,20 +1274,6 @@ static int vcodec_release(struct inode *inode, struct file *file)
         mutex_lock(&PWRLock);
         gu4PWRCounter = 0;
         mutex_unlock(&PWRLock);
-
-        mutex_lock(&L2CLock);
-#ifdef VDEC_USE_L2C
-        if (gu4L2CCounter != 0)
-        {
-            MFV_LOGE("vcodec_flush pid = %d, L2 user = %d, force restore L2 settings\n", current->pid, gu4L2CCounter);
-            if (config_L2(SZ_512K))
-            {
-                MFV_LOGE("restore L2 settings failed\n");
-            }
-        }
-#endif
-        gu4L2CCounter = 0;
-        mutex_unlock(&L2CLock);
 
         spin_lock_irqsave(&LockDecHWCountLock, ulFlagsLockHW);
         gu4LockDecHWCount = 0;
@@ -1448,6 +1310,13 @@ static int vcodec_release(struct inode *inode, struct file *file)
     return 0;
 }
 
+static int vcodec_release(struct inode *inode, struct file *file)
+{
+    MFV_LOGD("[VCODEC_DEBUG] vcodec_release, curr_tid =%d\n", current->pid);
+
+    return 0;
+}
+
 void vcodec_vma_open(struct vm_area_struct *vma)
 {
     MFV_LOGD("vcodec VMA open, virt %lx, phys %lx\n", vma->vm_start, vma->vm_pgoff << PAGE_SHIFT);
@@ -1466,11 +1335,11 @@ static struct vm_operations_struct vcodec_remap_vm_ops = {
 static int vcodec_mmap(struct file* file, struct vm_area_struct* vma)
 {
     long length;
-    VAL_ULONG_T pfn;
+    unsigned int pfn;
 
     length = vma->vm_end - vma->vm_start;
     pfn = vma->vm_pgoff<<PAGE_SHIFT;
-
+    
     if(((length > VENC_REGION) || (pfn < VENC_BASE) || (pfn > VENC_BASE+VENC_REGION)) &&
        ((length > VDEC_REGION) || (pfn < VDEC_BASE_PHY) || (pfn > VDEC_BASE_PHY+VDEC_REGION)) &&
        ((length > HW_REGION) || (pfn < HW_BASE) || (pfn > HW_BASE+HW_REGION)) &&
@@ -1479,7 +1348,7 @@ static int vcodec_mmap(struct file* file, struct vm_area_struct* vma)
        ((length > INFO_REGION_3) || (pfn < INFO_BASE_3) || (pfn > INFO_BASE_3+INFO_REGION_3))
       )
     {
-        MFV_LOGE("[ERROR] mmap region error: Length(0x%lx), pfn(0x%lx)\n", (VAL_ULONG_T)length, pfn);
+        MFV_LOGE("[ERROR] mmap region error: Length(0x%ld), pfn(0x%x)\n", length, pfn);
         return -EAGAIN;
     }
 
@@ -1501,7 +1370,7 @@ static int vcodec_mmap(struct file* file, struct vm_area_struct* vma)
 static void vcodec_early_suspend(struct early_suspend *h)
 {
     mutex_lock(&PWRLock);
-    MFV_LOGE("vcodec_early_suspend, tid = %d, PWR_USER = %d\n", current->pid, gu4PWRCounter);
+    MFV_LOGE("vcodec_early_suspend, tid = %d, PWR_USER = %u\n", current->pid, gu4PWRCounter);
     mutex_unlock(&PWRLock);
 /*
     if (gu4PWRCounter != 0)
@@ -1519,7 +1388,7 @@ static void vcodec_early_suspend(struct early_suspend *h)
 static void vcodec_late_resume(struct early_suspend *h)
 {
     mutex_lock(&PWRLock);
-    MFV_LOGE("vcodec_late_resume, tid = %d, PWR_USER = %d\n", current->pid, gu4PWRCounter);
+    MFV_LOGE("vcodec_late_resume, tid = %d, PWR_USER = %u\n", current->pid, gu4PWRCounter);
     mutex_unlock(&PWRLock);
 /*
     if (gu4PWRCounter != 0)
@@ -1567,10 +1436,6 @@ static int vcodec_probe(struct platform_device *dev)
     mutex_lock(&PWRLock);
     gu4PWRCounter = 0;
     mutex_unlock(&PWRLock);
-
-    mutex_lock(&L2CLock);
-    gu4L2CCounter = 0;
-    mutex_unlock(&L2CLock);
 
     ret = register_chrdev_region(vcodec_devno, 1, VCODEC_DEVNAME);
     if (ret) {
@@ -1645,9 +1510,7 @@ static int __init vcodec_driver_init(void)
 
     MFV_LOGD("+vcodec_init !!\n");
 
-    mutex_lock(&DriverOpenCountLock);
     MT6582Driver_Open_Count = 0;
-    mutex_unlock(&DriverOpenCountLock);
 
     KVA_VENC_IRQ_STATUS_ADDR =  (int)ioremap(VENC_IRQ_STATUS_addr, 4);
     KVA_VENC_IRQ_ACK_ADDR  = (int)ioremap(VENC_IRQ_ACK_addr, 4);
@@ -1695,7 +1558,6 @@ static int __init vcodec_driver_init(void)
     mutex_unlock(&NonCacheMemoryListLock);
 
     mutex_lock(&VdecHWLock);
-    gu4VdecLockThreadId = 0;
     grVcodecDecHWLock.pvHandle = 0;
     grVcodecDecHWLock.eDriverType = VAL_DRIVER_TYPE_NONE;
     grVcodecDecHWLock.rLockedTime.u4Sec = 0;

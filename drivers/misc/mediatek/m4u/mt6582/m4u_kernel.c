@@ -1,3 +1,16 @@
+/*
+* Copyright (C) 2011-2014 MediaTek Inc.
+* 
+* This program is free software: you can redistribute it and/or modify it under the terms of the 
+* GNU General Public License version 2 as published by the Free Software Foundation.
+* 
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #include <linux/version.h>
 #include <linux/uaccess.h>
@@ -227,15 +240,15 @@ unsigned int m4u_user_v2p(unsigned int va)
     pte = pte_offset_map(pmd, va);
     if(pte_present(*pte)) 
     { 
-/*
+
         if((long long)pte_val(pte[PTE_HWTABLE_PTRS]) == (long long)0)
         {
-        	M4UMSG("user_v2p, va=0x%x, *ppte=%08llx", va,
+        	M4UDBG("user_v2p, va=0x%x, *ppte=%08llx", va,
         	       (long long)pte_val(pte[PTE_HWTABLE_PTRS]));
             pte_unmap(pte);
             return 0;
         }
-*/        
+        
         pa=(pte_val(*pte) & (PAGE_MASK)) | pageOffset; 
         pte_unmap(pte);
         return pa; 

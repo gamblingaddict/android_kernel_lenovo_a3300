@@ -1,3 +1,17 @@
+/*
+* Copyright (C) 2011-2014 MediaTek Inc.
+* 
+* This program is free software: you can redistribute it and/or modify it under the terms of the 
+* GNU General Public License version 2 as published by the Free Software Foundation.
+* 
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; 
+* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef __MT6589_DRVBASE_H__
 #define __MT6589_DRVBASE_H__
 
@@ -17,7 +31,7 @@ typedef struct
 {
     VAL_UINT32_T u4KVA;                                     // Kernel virtual address
     VAL_UINT32_T u4KPA;                                     // Kernel physical address
-    VAL_HANDLE_T pvHandle;                                  //
+    VAL_HANDLE_T pvHandle;                                  // 
     VAL_UINT32_T u4VCodecThreadNum;                         // Hybrid vcodec thread num
     VAL_UINT32_T u4VCodecThreadID[VCODEC_THREAD_MAX_NUM];   // hybrid vcodec thread ids
     VAL_UINT32_T u4Size;
@@ -40,13 +54,14 @@ extern VAL_UINT32_T gu4LockEncHWCount; //spinlock : LockEncHWCountLock
 extern VAL_UINT32_T gu4DecISRCount;    //spinlock : DecISRCountLock
 extern VAL_UINT32_T gu4EncISRCount;    //spinlock : EncISRCountLock
 
+
 VAL_INT32_T search_HWLockSlot_ByTID(VAL_UINT32_T pa, VAL_UINT32_T curr_tid);
 VAL_INT32_T search_HWLockSlot_ByHandle(VAL_UINT32_T pa, VAL_HANDLE_T handle);
 VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot(VAL_UINT32_T pa, VAL_UINT32_T tid);
 VAL_VCODEC_OAL_HW_CONTEXT_T *setCurr_HWLockSlot_Thread_ID(VAL_VCODEC_THREAD_ID_T a_prVcodecThreadID, VAL_UINT32_T *a_prIndex);
 VAL_VCODEC_OAL_HW_CONTEXT_T *freeCurr_HWLockSlot(VAL_UINT32_T pa);
-VAL_INT32_T Add_NonCacheMemoryList(VAL_UINT32_T a_u4KVA, VAL_UINT32_T a_u4KPA, VAL_UINT32_T a_u4Size, VAL_UINT32_T a_u4VCodecThreadNum, VAL_UINT32_T* a_pu4VCodecThreadID);
-VAL_INT32_T Free_NonCacheMemoryList(VAL_UINT32_T a_u4KVA, VAL_UINT32_T a_u4KPA);
+void Add_NonCacheMemoryList(VAL_UINT32_T a_u4KVA, VAL_UINT32_T a_u4KPA, VAL_UINT32_T a_u4Size, VAL_UINT32_T a_u4VCodecThreadNum, VAL_UINT32_T* a_pu4VCodecThreadID);
+void Free_NonCacheMemoryList(VAL_UINT32_T a_u4KVA, VAL_UINT32_T a_u4KPA);
 void Force_Free_NonCacheMemoryList(VAL_UINT32_T a_u4Tid);
 VAL_UINT32_T Search_NonCacheMemoryList_By_KPA(VAL_UINT32_T a_u4KPA);
 
