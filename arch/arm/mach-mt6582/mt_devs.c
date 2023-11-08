@@ -29,6 +29,9 @@
 #include <linux/mrdump.h>
 #include <mach/i2c.h>
 #include <mach/mt_boot_reason.h>
+#if defined(CONFIG_PSTORE_RAM) && !defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
+#include <linux/pstore_ram.h>
+#endif
 
 #define SERIALNO_LEN 32
 static char serial_number[SERIALNO_LEN];
@@ -543,6 +546,20 @@ static struct platform_device mt_spi_device = {
 
 #endif
 
+#if defined(CONFIG_PSTORE_RAM) && !defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
+static struct ramoops_platform_data ramoops_data = {
+	.mem_size	= 0x10000,
+	.mem_address	= 0x83F00000,
+	.console_size	= 0x10000,
+};
+
+static struct platform_device ramoops_dev = {
+      .name = "ramoops",
+      .dev = {
+              .platform_data = &ramoops_data,
+      },
+};
+#endif
 
 #if defined(CONFIG_USB_MTK_ACM_TEMP)
 struct platform_device usbacm_temp_device = {
@@ -2036,6 +2053,13 @@ retval = platform_device_register(&dummychar_device);
 	}
 #endif
 
+#if defined(CONFIG_PSTORE_RAM) && !defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
+    retval = platform_device_register(&ramoops_dev);
+    if (retval) {
+	printk(KERN_ERR "unable to register platform device\n");
+		return retval;
+	}
+#endif
 
 #if defined(CONFIG_ANDROID_PMEM)
     pdata_multimedia.start = PMEM_MM_START;;
@@ -2283,7 +2307,11 @@ void mt_reserve(void)
 //    aee_dram_console_reserve_memory();
 	mrdump_reserve_memory();
 
-#if defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
+#if defined(CONFIG_PSTORE_RAM) && !defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
+	memblock_reserve(ramoops_data.mem_address, ramoops_data.mem_size);
+#endif
+
+#if defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM) && !defined(CONFIG_PSTORE_RAM)
 	memblock_reserve(CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR, CONFIG_MTK_RAM_CONSOLE_DRAM_SIZE);
 #endif
         mrdump_mini_reserve_memory();
