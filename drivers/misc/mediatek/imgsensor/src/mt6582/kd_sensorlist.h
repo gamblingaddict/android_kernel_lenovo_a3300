@@ -1,3 +1,7 @@
+/* Add init config node for FATP */
+int main_sensor_init_setting_switch = 0;
+int sub_sensor_init_setting_switch = 0;
+
 //s_add new sensor driver here
 //export funtions
 UINT32 IMX219_MIPI_RAW_SensorInit(PSENSOR_FUNCTION_STRUCT *pfFunc);
