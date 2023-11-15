@@ -4146,21 +4146,6 @@ static bool check_same_owner(struct task_struct *p)
 	return match;
 }
 
-static int check_mt_allow_rt(struct sched_param *param)
-{
-	int allow = 0;
-	if(0 == MT_ALLOW_RT_PRIO_BIT){
-		//this condition check will be removed
-		return 1;
-	}
-
-	if(param->sched_priority & MT_ALLOW_RT_PRIO_BIT){
-		param->sched_priority &= ~MT_ALLOW_RT_PRIO_BIT;
-		allow = 1;
-	}
-	return allow;
-}   
-
 static int __sched_setscheduler(struct task_struct *p, int policy,
 				const struct sched_param *param, bool user)
 {
@@ -4185,13 +4170,6 @@ recheck:
 				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
 				policy != SCHED_IDLE)
 			return -EINVAL;
-	}
-
-	if(rt_policy(policy)){                                                                                
-		if (!check_mt_allow_rt((struct sched_param *)param)){
-			printk("[RT_MONITOR]WARNNING [%d:%s] SET NOT ALLOW RT Prio [%d] for proc [%d:%s]\n", current->pid, current->comm, param->sched_priority, p->pid, p->comm);
-			//dump_stack();
-		}
 	}
 
 	/*
