@@ -140,14 +140,14 @@ extern int i2c_read_bytes(struct i2c_client *client, u16 addr, u8 *rxbuf, int le
 #define GTP_SLIDE_WAKEUP      0      
 #define GTP_CHARGER_SWITCH    0       // charger plugin & plugout detect
 #define GTP_WITH_PEN          0       // pen/stylus support
-#define TPD_PROXIMITY
+#define TPD_PROXIMITY	      1
 //#define TPD_HAVE_BUTTON             // report key as coordinate,Vibration feedback
 //#define TPD_WARP_X
 //#define TPD_WARP_Y
 
-#define GTP_DEBUG_ON          1
-#define GTP_DEBUG_ARRAY_ON    1
-#define GTP_DEBUG_FUNC_ON     1
+#define GTP_DEBUG_ON          0
+#define GTP_DEBUG_ARRAY_ON    0
+#define GTP_DEBUG_FUNC_ON     0
 
 //***************************PART2:TODO define**********************************
 //STEP_1(REQUIRED):Change config table.

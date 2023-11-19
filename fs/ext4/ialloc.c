@@ -652,10 +652,24 @@ struct inode *__ext4_new_inode(handle_t *handle, struct inode *dir,
 	struct inode *ret;
 	ext4_group_t i;
 	ext4_group_t flex_group;
+	int encrypt = 0;
 
 	/* Cannot create files in a deleted directory */
 	if (!dir || !dir->i_nlink)
 		return ERR_PTR(-EPERM);
+
+	if ((ext4_encrypted_inode(dir) ||
+	     DUMMY_ENCRYPTION_ENABLED(EXT4_SB(dir->i_sb))) &&
+	    (S_ISREG(mode) || S_ISDIR(mode) || S_ISLNK(mode))) {
+		err = ext4_get_encryption_info(dir);
+		if (err)
+			return ERR_PTR(err);
+		if (ext4_encryption_info(dir) == NULL)
+			return ERR_PTR(-EPERM);
+		if (!handle)
+			nblocks += EXT4_DATA_TRANS_BLOCKS(dir->i_sb);
+		encrypt = 1;
+	}
 
 	sb = dir->i_sb;
 	ngroups = ext4_get_groups_count(sb);
@@ -921,8 +935,7 @@ got:
 	spin_unlock(&sbi->s_next_gen_lock);
 
 	/* Precompute checksum seed for inode metadata */
-	if (EXT4_HAS_RO_COMPAT_FEATURE(sb,
-			EXT4_FEATURE_RO_COMPAT_METADATA_CSUM)) {
+	if (ext4_has_metadata_csum(sb)) {
 		__u32 csum;
 		__le32 inum = cpu_to_le32(inode->i_ino);
 		__le32 gen = cpu_to_le32(inode->i_generation);
@@ -936,11 +949,9 @@ got:
 	ext4_set_inode_state(inode, EXT4_STATE_NEW);
 
 	ei->i_extra_isize = EXT4_SB(sb)->s_want_extra_isize;
-
 	ei->i_inline_off = 0;
 	if (EXT4_HAS_INCOMPAT_FEATURE(sb, EXT4_FEATURE_INCOMPAT_INLINE_DATA))
 		ext4_set_inode_state(inode, EXT4_STATE_MAY_INLINE_DATA);
-
 	ret = inode;
 	err = dquot_alloc_inode(inode);
 	if (err)
@@ -965,6 +976,12 @@ got:
 	if (ext4_handle_valid(handle)) {
 		ei->i_sync_tid = handle->h_transaction->t_tid;
 		ei->i_datasync_tid = handle->h_transaction->t_tid;
+	}
+
+	if (encrypt) {
+		err = ext4_inherit_context(dir, inode);
+		if (err)
+			goto fail_free_drop;
 	}
 
 	err = ext4_mark_inode_dirty(handle, inode);
