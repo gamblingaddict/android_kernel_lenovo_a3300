@@ -1325,53 +1325,25 @@ static void __init kmap_init(void)
 static void __init map_lowmem(void)
 {
 	struct memblock_region *reg;
-	phys_addr_t start;
-	phys_addr_t end;
-	phys_addr_t limit = 0;
-	struct map_desc map;
 
 	/* Map all the lowmem memory banks. */
 	for_each_memblock(memory, reg) {
-		start = reg->base;
-		end = start + reg->size;
-                MTK_MEMCFG_LOG_AND_PRINTK(KERN_ALERT"[PHY layout]kernel   :   0x%08llx - 0x%08llx (0x%08llx)\n",
-                      (unsigned long long)start,
-                      (unsigned long long)end - 1,
-                      (unsigned long long)reg->size);
+		phys_addr_t start = reg->base;
+		phys_addr_t end = start + reg->size;
+		struct map_desc map;
 
-		if (end > arm_lowmem_limit)
-			end = arm_lowmem_limit;
+		if (end > lowmem_limit)
+			end = lowmem_limit;
 		if (start >= end)
-			continue;
+			break;
 
 		map.pfn = __phys_to_pfn(start);
 		map.virtual = __phys_to_virt(start);
 		map.length = end - start;
 		map.type = MT_MEMORY;
 
-		if (!limit && !(end & ~SECTION_MASK)) {
-			/* take first section-size aligned memblock */
-			limit = end;
-			memblock_set_current_limit(limit);
-		}
-                printk(KERN_ALERT"creating mapping start pa: 0x%08llx @ 0x%08llx "
-                        ", end pa: 0x%08llx @ 0x%08llx\n",
-                       (unsigned long long)start, (unsigned long long)map.virtual,
-                       (unsigned long long)end, (unsigned long long)__phys_to_virt(end));
 		create_mapping(&map, false);
 	}
-
-#ifdef CONFIG_DEBUG_RODATA
-	start = __pa((unsigned long)_stext & PMD_MASK);
-	end =  __pa(ALIGN((unsigned long)__end_rodata, PMD_SIZE));
-
-	map.pfn = __phys_to_pfn(start);
-	map.virtual = __phys_to_virt(start);
-	map.length = end - start;
-	map.type = MT_MEMORY;
-
-	create_mapping(&map, true);
-#endif
 }
 
 /*
