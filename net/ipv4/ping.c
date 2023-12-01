@@ -165,7 +165,7 @@ void ping_unhash(struct sock *sk)
 }
 EXPORT_SYMBOL_GPL(ping_unhash);
 
-static struct sock *ping_lookup(struct net *net, struct sk_buff *skb, u16 ident)
+static struct sock *ping_v4_lookup(struct net *net, struct sk_buff *skb, u16 ident)
 {
 	struct hlist_nulls_head *hslot = ping_hashslot(&ping_table, net, ident);
 	struct sock *sk = NULL;
@@ -511,7 +511,7 @@ void ping_err(struct sk_buff *skb, int offset, u32 info)
 		 skb->protocol, type, code, ntohs(icmph->un.echo.id),
 		 ntohs(icmph->un.echo.sequence));
 
-	sk = ping_lookup(net, skb, ntohs(icmph->un.echo.id));
+	sk = ping_v4_lookup(net, skb, ntohs(icmph->un.echo.id));
 	if (sk == NULL) {
 		pr_debug("no socket, dropping\n");
 		return;	/* No socket for error */
@@ -967,17 +967,14 @@ void ping_rcv(struct sk_buff *skb)
 	/* Push ICMP header back */
 	skb_push(skb, skb->data - (u8 *)icmph);
 
-	sk = ping_lookup(net, skb, ntohs(icmph->un.echo.id));
+	sk = ping_v4_lookup(net, skb, ntohs(icmph->un.echo.id));
 	if (sk != NULL) {
-#ifdef CONFIG_MTK_NET_LOGGING  
-		printk(KERN_INFO "[mtk_net][ping_debug]rcv on sk %p\n", sk);
-#endif
+		pr_debug("rcv on socket %p\n", sk);
 		ping_queue_rcv_skb(sk, skb_get(skb));
-		/*mtk_net: don't put sock here, do sock_put after free skb*/
-		/* sock_put(sk); */
+		sock_put(sk);
 		return;
 	}
-	pr_info("[mtk_net][ping_debug]no socket, dropping\n");
+	pr_debug("no socket, dropping\n");
 
 	/* We're called from icmp_rcv(). kfree_skb() is done there. */
 }
