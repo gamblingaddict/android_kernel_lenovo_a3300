@@ -2172,13 +2172,13 @@ L_CPU_FINAL:
         mov     sp, r3
 
         add     lr, lr, #PAGE_OFFSET
-        @ sub     lr, lr, #PHYS_OFFSET
-        ldr     r1,=PHYS_OFFSET
+        @ sub     lr, lr, #ASM_PHYS_OFFSET
+        ldr     r1,=ASM_PHYS_OFFSET
         sub     lr, lr, r1
 
         add     r11, r11, #PAGE_OFFSET
-        @ sub     r11, r11, #PHYS_OFFSET
-        ldr     r1,=PHYS_OFFSET
+        @ sub     r11, r11, #ASM_PHYS_OFFSET
+        ldr     r1,=ASM_PHYS_OFFSET
         sub     r11, r11, r1
         
         mcr     p15,0,r2,c1,c0,0    @ SCTLR - System Control Register 
@@ -2255,8 +2255,8 @@ L_CPU_FINAL_WP:
         ldr     r1,=PAGE_OFFSET
         sub     r0, r0, r1
         
-        @ add   r0, r0, #PHYS_OFFSET
-        ldr     r1,=PHYS_OFFSET
+        @ add   r0, r0, #ASM_PHYS_OFFSET
+        ldr     r1,=ASM_PHYS_OFFSET
         add     r0, r0, r1
         
         mov     sp, r0
