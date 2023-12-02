@@ -55,12 +55,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
 
-/* Some options {*/
-#define LOG_TOO_MUCH_WARNING
-#ifdef LOG_TOO_MUCH_WARNING
-static int log_in_resume;
-#endif
-/* Some options }*/
 #ifdef CONFIG_EARLY_PRINTK_DIRECT
 extern void printascii(char *);
 #endif
@@ -1331,7 +1325,7 @@ static void call_console_drivers(int level, const char *text, size_t len)
 {
 	struct console *con;
 
-	trace_console(text, len);
+	trace_console_rcuidle(text, len);
 
 	if (level >= console_loglevel && !ignore_loglevel)
 		return;
@@ -1992,15 +1986,7 @@ void resume_console(void)
 	down(&console_sem);
 	mutex_acquire(&console_lock_dep_map, 0, 0, _RET_IP_);
 	console_suspended = 0;
-#ifdef LOG_TOO_MUCH_WARNING
-//    __raw_get_cpu_var(MT_trace_in_resume_console) = 1;
-//    log_in_resume = 1;
-    console_unlock();
-//    log_in_resume = 0;
-//    __raw_get_cpu_var(MT_trace_in_resume_console) = 0;
-#else
-    console_unlock();
-#endif
+	console_unlock();
 }
 EXPORT_SYMBOL_GPL(resume_console);
 
@@ -2121,29 +2107,30 @@ out:
  *
  * console_unlock(); may be called from any context.
  */
-#ifdef LOG_TOO_MUCH_WARNING
-static int console_log_max = 400000;
-static int already_skip_log;
-#endif
 void console_unlock(void)
 {
 	static char text[LOG_LINE_MAX + PREFIX_MAX];
 	static u64 seen_seq;
 	unsigned long flags;
 	bool wake_klogd = false;
-	bool retry;
-#ifdef LOG_TOO_MUCH_WARNING
-    unsigned long total_log_size = 0;
-    unsigned long long t1 = 0, t2 = 0;
-    char aee_str[512];
-    int org_loglevel = console_loglevel;
-#endif
+	bool do_cond_resched, retry;
 
 	if (console_suspended) {
 		up(&console_sem);
 		return;
 	}
 
+	/*
+	 * Console drivers are called under logbuf_lock, so
+	 * @console_may_schedule should be cleared before; however, we may
+	 * end up dumping a lot of lines, for example, if called from
+	 * console registration path, and should invoke cond_resched()
+	 * between lines if allowable.  Not doing so can cause a very long
+	 * scheduling stall on a slow console leading to RCU stall and
+	 * softlockup warnings which exacerbate the issue with more
+	 * messages practically incapacitating the system.
+	 */
+	do_cond_resched = console_may_schedule;
 	console_may_schedule = 0;
 
 	/* flush buffered message fragment immediately to console */
@@ -2155,11 +2142,6 @@ again:
 		int level;
 
 		raw_spin_lock_irqsave(&logbuf_lock, flags);
-#ifdef LOG_TOO_MUCH_WARNING /*For Resume log too much*/
-        if (log_in_resume) {
-            t1 = sched_clock();
-        }
-#endif
 
 		if (seen_seq != log_next_seq) {
 			wake_klogd = true;
@@ -2203,42 +2185,12 @@ skip:
 		raw_spin_unlock(&logbuf_lock);
 
 		stop_critical_timings();	/* don't trace print latency */
-#ifdef LOG_TOO_MUCH_WARNING
-        /*
-           For uart console, 10us/per chars
-           400,000 chars = need to wait 4.0 sec
-                normal case: 4sec
-         */
-        if (log_in_resume) {
-            org_loglevel = console_loglevel;
-            console_loglevel = 4;
-        }
-        total_log_size += len;
-        if (total_log_size < console_log_max)
-		    call_console_drivers(level, text, len);
-        else if (!already_skip_log) {
-            sprintf(aee_str, "PRINTK too much:%lu", total_log_size);
-            aee_kernel_warning(aee_str, "Need to shrink kernel log");
-            already_skip_log = 1;
-        }
-        /**/
-        start_critical_timings();
-        /* For Resume log too much*/
-        if (log_in_resume) {
-            t2 = sched_clock();
-            console_loglevel = org_loglevel;
-            if (t2 - t1 > 100000000) {
-                sprintf( aee_str,"[RESUME CONSOLE too long:%lluns>100ms] s:%lluns, e:%lluns\n", t2 - t1, t1, t2);
-                aee_kernel_warning(aee_str, "Need to shrink kernel log");
-            }
-        }
-
-        /**/
-#else
-        start_critical_timings();
-        call_console_drivers(level, text, len);
-#endif
+		start_critical_timings();
+		call_console_drivers(level, text, len);
 		local_irq_restore(flags);
+
+		if (do_cond_resched)
+			cond_resched();
 	}
 	console_locked = 0;
 	mutex_release(&console_lock_dep_map, 1, _RET_IP_);
@@ -2304,6 +2256,25 @@ void console_unblank(void)
 	for_each_console(c)
 		if ((c->flags & CON_ENABLED) && c->unblank)
 			c->unblank();
+	console_unlock();
+}
+
+/**
+ * console_flush_on_panic - flush console content on panic
+ *
+ * Immediately output all pending messages no matter what.
+ */
+void console_flush_on_panic(void)
+{
+	/*
+	 * If someone else is holding the console lock, trylock will fail
+	 * and may_schedule may be set.  Ignore and proceed to unlock so
+	 * that messages are flushed out.  As this can be called from any
+	 * context and we don't want to get preempted while flushing,
+	 * ensure may_schedule is cleared.
+	 */
+	console_trylock();
+	console_may_schedule = 0;
 	console_unlock();
 }
 
