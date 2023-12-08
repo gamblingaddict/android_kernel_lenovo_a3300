@@ -19,9 +19,13 @@ MTK_BTIF_IRQ_STR mtk_btif_irq = {
 	.name = "mtk btif irq",
 	.is_irq_sup = true,
 	.reg_flag = false,
+#ifdef CONFIG_OF
+	.irq_flags = IRQF_TRIGGER_NONE,
+#else
 	.irq_id = MT_BTIF_IRQ_ID,
 	.sens_type = IRQ_SENS_LVL,
 	.lvl_type = IRQ_LVL_LOW,
+#endif
 	.p_irq_handler = NULL,
 };
 
@@ -29,7 +33,9 @@ MTK_BTIF_IRQ_STR mtk_btif_irq = {
 but we may need to access these registers in case of btif clock control logic is wrong in clock manager*/
 
 MTK_BTIF_INFO_STR mtk_btif = {
+#ifndef CONFIG_OF
 	.base = MTK_BTIF_REG_BASE,
+#endif
 	.p_irq = &mtk_btif_irq,
 	.tx_fifo_size = BTIF_TX_FIFO_SIZE,
 	.rx_fifo_size = BTIF_RX_FIFO_SIZE,
@@ -159,6 +165,42 @@ static int _get_btif_tx_fifo_room(P_MTK_BTIF_INFO_STR p_btif_info)
 	return i_ret;
 }
 
+#ifdef CONFIG_OF
+static void _btif_set_default_setting(void)
+{
+	struct device_node *node = NULL;
+	unsigned int irq_info[3] = {0, 0, 0};
+	unsigned int phy_base;
+
+	node = of_find_compatible_node(NULL, NULL, "mediatek,BTIF");
+	if(node){
+		mtk_btif.p_irq->irq_id = irq_of_parse_and_map(node,0);
+		/*fixme, be compitable arch 64bits*/
+		mtk_btif.base = (unsigned long)of_iomap(node, 0);
+		BTIF_INFO_FUNC("get btif irq(%d),register base(0x%lx)\n",
+			mtk_btif.p_irq->irq_id,mtk_btif.base);
+	}else{
+		BTIF_ERR_FUNC("get btif device node fail\n");
+	}
+
+	/* get the interrupt line behaviour */
+    if (of_property_read_u32_array(node, "interrupts",
+			irq_info, ARRAY_SIZE(irq_info))){
+		BTIF_ERR_FUNC("get interrupt flag from DTS fail\n");
+	}else{
+		mtk_btif.p_irq->irq_flags = irq_info[2];
+		BTIF_INFO_FUNC("get interrupt flag(0x%x)\n",mtk_btif.p_irq->irq_flags);
+	}
+
+	if (of_property_read_u32_index(node, "reg", 0, &phy_base)){
+		BTIF_ERR_FUNC("get register phy base from DTS fail\n");
+    }else{
+		BTIF_INFO_FUNC("get register phy base(0x%x)\n",(unsigned int)phy_base);
+	}
+
+}
+#endif
+
 static int _btif_tx_fifo_reset(P_MTK_BTIF_INFO_STR p_btif_info)
 {
 	int i_ret = 0;
@@ -191,6 +233,9 @@ P_MTK_BTIF_INFO_STR hal_btif_info_get(void)
 	} else {
 		BTIF_ERR_FUNC("_btif_tx_fifo_init failed, i_ret:%d\n", i_ret);
 	}
+#endif
+#ifdef CONFIG_OF
+	_btif_set_default_setting();
 #endif
 	spin_lock_init(&g_clk_cg_spinlock);
 
@@ -1196,6 +1241,9 @@ int hal_btif_pm_ops(P_MTK_BTIF_INFO_STR p_btif_info, MTK_BTIF_PM_OPID opid)
 	case BTIF_PM_RESTORE_NOIRQ:{
 			unsigned int flag = 0;
 			P_MTK_BTIF_IRQ_STR p_irq = p_btif_info->p_irq;
+#ifdef CONFIG_OF
+			flag = p_irq->irq_flags;
+#else
 			switch (p_irq->sens_type) {
 			case IRQ_SENS_EDGE:
 				if (IRQ_EDGE_FALL == p_irq->edge_type)
@@ -1220,6 +1268,7 @@ int hal_btif_pm_ops(P_MTK_BTIF_INFO_STR p_btif_info, MTK_BTIF_PM_OPID opid)
 				flag = IRQF_TRIGGER_LOW;	/*make this as default type */
 				break;
 			}
+#endif
 /* irq_set_irq_type(p_irq->irq_id, flag); */
 			i_ret = 0;
 		}

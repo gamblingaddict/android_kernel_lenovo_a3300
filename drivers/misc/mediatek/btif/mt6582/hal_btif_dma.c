@@ -1,3 +1,17 @@
+/*
+* Copyright (C) 2011-2014 MediaTek Inc.
+*
+* This program is free software: you can redistribute it and/or modify it under the terms of the
+* GNU General Public License version 2 as published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+* See the GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <linux/kernel.h>
 
 #ifdef DFT_TAG
@@ -28,9 +42,13 @@ static MTK_BTIF_IRQ_STR mtk_btif_tx_dma_irq = {
 	.name = "mtk btif tx dma irq",
 	.is_irq_sup = true,
 	.reg_flag = false,
+#ifdef CONFIG_OF
+	.irq_flags = IRQF_TRIGGER_NONE,
+#else
 	.irq_id = MT_DMA_BTIF_TX_IRQ_ID,
 	.sens_type = IRQ_SENS_LVL,
 	.lvl_type = IRQ_LVL_LOW,
+#endif
 	.p_irq_handler = NULL,
 };
 
@@ -52,21 +70,29 @@ static MTK_BTIF_IRQ_STR mtk_btif_rx_dma_irq = {
 	.name = "mtk btif rx dma irq",
 	.is_irq_sup = true,
 	.reg_flag = false,
+#ifdef CONFIG_OF
+	.irq_flags = IRQF_TRIGGER_NONE,
+#else
 	.irq_id = MT_DMA_BTIF_RX_IRQ_ID,
 	.sens_type = IRQ_SENS_LVL,
 	.lvl_type = IRQ_LVL_LOW,
+#endif
 	.p_irq_handler = NULL,
 };
 
 static MTK_DMA_INFO_STR mtk_btif_tx_dma = {
+#ifndef CONFIG_OF
 	.base = AP_DMA_BASE + BTIF_TX_DMA_OFFSET,
+#endif
 	.dir = DMA_DIR_TX,
 	.p_irq = &mtk_btif_tx_dma_irq,
 	.p_vfifo = &(mtk_tx_dma_vfifo.vfifo),
 };
 
 static MTK_DMA_INFO_STR mtk_btif_rx_dma = {
+#ifndef CONFIG_OF
 	.base = AP_DMA_BASE + BTIF_RX_DMA_OFFSET,
+#endif
 	.dir = DMA_DIR_RX,
 	.p_irq = &mtk_btif_rx_dma_irq,
 	.p_vfifo = &(mtk_rx_dma_vfifo.vfifo),
@@ -121,6 +147,77 @@ static int hal_dma_receive_data(P_MTK_DMA_INFO_STR p_dma_info,
 
 /************************************Function***********************************/
 
+#ifdef CONFIG_OF
+static void hal_dma_set_default_setting(ENUM_DMA_DIR dma_dir)
+{
+	struct device_node *node = NULL;
+	unsigned int irq_info[3] = {0, 0, 0};
+	unsigned int phy_base;
+
+	if(DMA_DIR_RX == dma_dir){
+		node = of_find_compatible_node(NULL, NULL, "mediatek,AP_DMA_BTIF_RX");
+		if(node){
+			mtk_btif_rx_dma.p_irq->irq_id = irq_of_parse_and_map(node,0);
+			/*fixme, be compitable arch 64bits*/
+			mtk_btif_rx_dma.base = (unsigned long)of_iomap(node, 0);
+			BTIF_INFO_FUNC("get rx_dma irq(%d),register base(0x%lx)\n",
+				mtk_btif_rx_dma.p_irq->irq_id,mtk_btif_rx_dma.base);
+		}else{
+			BTIF_ERR_FUNC("get rx_dma device node fail\n");
+		}
+
+		/* get the interrupt line behaviour */
+	    if (of_property_read_u32_array(node, "interrupts",
+				irq_info, ARRAY_SIZE(irq_info))){
+			BTIF_ERR_FUNC("get interrupt flag from DTS fail\n");
+		}else{
+			mtk_btif_rx_dma.p_irq->irq_flags = irq_info[2];
+			BTIF_INFO_FUNC("get interrupt flag(0x%x)\n",
+				mtk_btif_rx_dma.p_irq->irq_flags);
+		}
+
+		if (of_property_read_u32_index(node, "reg", 0, &phy_base)){
+			BTIF_ERR_FUNC("get register phy base from DTS fail,dma_dir(%d)\n",\
+				dma_dir);
+	    }else{
+			BTIF_INFO_FUNC("get register phy base dma_dir(%d)(0x%x)\n",
+				dma_dir,(unsigned int)phy_base);
+		}
+
+	} else if (DMA_DIR_TX == dma_dir) {
+		node = of_find_compatible_node(NULL, NULL, "mediatek,AP_DMA_BTIF_TX");
+		if(node){
+			mtk_btif_tx_dma.p_irq->irq_id = irq_of_parse_and_map(node,0);
+			/*fixme, be compitable arch 64bits*/
+			mtk_btif_tx_dma.base = (unsigned long)of_iomap(node, 0);
+			BTIF_INFO_FUNC("get tx_dma irq(%d),register base(0x%lx)\n",
+				mtk_btif_tx_dma.p_irq->irq_id,mtk_btif_tx_dma.base);
+		}else{
+			BTIF_ERR_FUNC("get tx_dma device node fail\n");
+		}
+
+		/* get the interrupt line behaviour */
+	    if (of_property_read_u32_array(node, "interrupts",
+				irq_info, ARRAY_SIZE(irq_info))){
+			BTIF_ERR_FUNC("get interrupt flag from DTS fail\n");
+		}else{
+			mtk_btif_tx_dma.p_irq->irq_flags = irq_info[2];
+			BTIF_INFO_FUNC("get interrupt flag(0x%x)\n",
+				mtk_btif_tx_dma.p_irq->irq_flags);
+		}
+
+		if (of_property_read_u32_index(node, "reg", 0, &phy_base)){
+			BTIF_ERR_FUNC("get register phy base from DTS fail,dma_dir(%d)\n",
+				dma_dir);
+	    }else{
+			BTIF_INFO_FUNC("get register phy base dma_dir(%d)(0x%x)\n",
+				dma_dir,(unsigned int)phy_base);
+		}
+	}
+
+}
+#endif
+
 /*****************************************************************************
 * FUNCTION
 *  hal_tx_dma_info_get
@@ -136,6 +233,9 @@ P_MTK_DMA_INFO_STR hal_btif_dma_info_get(ENUM_DMA_DIR dma_dir)
 	P_MTK_DMA_INFO_STR p_dma_info = NULL;
 
 	BTIF_TRC_FUNC();
+#ifdef CONFIG_OF
+	hal_dma_set_default_setting(dma_dir);
+#endif
 	if (DMA_DIR_RX == dma_dir) {
 /*Rx DMA*/
 		p_dma_info = &mtk_btif_rx_dma;
@@ -1163,6 +1263,9 @@ int hal_dma_pm_ops(P_MTK_DMA_INFO_STR p_dma_info, MTK_BTIF_PM_OPID opid)
 	case BTIF_PM_RESTORE_NOIRQ:{
 			unsigned int flag = 0;
 			P_MTK_BTIF_IRQ_STR p_irq = p_dma_info->p_irq;
+#ifdef CONFIG_OF
+			flag = p_irq->irq_flags;
+#else
 			switch (p_irq->sens_type) {
 			case IRQ_SENS_EDGE:
 				if (IRQ_EDGE_FALL == p_irq->edge_type)
@@ -1187,6 +1290,7 @@ int hal_dma_pm_ops(P_MTK_DMA_INFO_STR p_dma_info, MTK_BTIF_PM_OPID opid)
 				flag = IRQF_TRIGGER_LOW;	/*make this as default type */
 				break;
 			}
+#endif
 /* irq_set_irq_type(p_irq->irq_id, flag); */
 			i_ret = 0;
 		}
