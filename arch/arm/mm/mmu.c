@@ -708,8 +708,8 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 }
 
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
-	unsigned long end, unsigned long phys, const struct mem_type *type,
-	bool force_pages)
+				  unsigned long end, phys_addr_t phys,
+				  const struct mem_type *type, bool force_pages)
 {
 	pud_t *pud = pud_offset(pgd, addr);
 	unsigned long next;
@@ -1336,8 +1336,8 @@ static void __init map_lowmem(void)
 		phys_addr_t end = start + reg->size;
 		struct map_desc map;
 
-		if (end > lowmem_limit)
-			end = lowmem_limit;
+		if (end > arm_lowmem_limit)
+			end = arm_lowmem_limit;
 		if (start >= end)
 			break;
 
