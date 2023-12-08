@@ -597,8 +597,10 @@ INT32 mtk_wcn_consys_hw_init()
 	}else{
 		WMT_PLAT_ERR_FUNC("EMI mapping fail\n");
 	}
+#ifdef CONFIG_MTK_HIBERNATION
 	WMT_PLAT_INFO_FUNC("register connsys restore cb for complying with IPOH function\n");
 	register_swsusp_restore_noirq_func(ID_M_CONNSYS,mtk_wcn_consys_hw_restore,NULL);
+#endif
 
 	return iRet;
 }
@@ -610,7 +612,9 @@ INT32 mtk_wcn_consys_hw_deinit()
 		iounmap(pEmibaseaddr);
 		pEmibaseaddr = NULL;
 	}
+#ifdef CONFIG_MTK_HIBERNATION
 	unregister_swsusp_restore_noirq_func(ID_M_CONNSYS);
+#endif
 	return 0;
 }
 
