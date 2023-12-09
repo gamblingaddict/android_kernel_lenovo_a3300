@@ -1163,7 +1163,7 @@ static int sec_lib_version_check(void)
 // New signature check version. 2012-2-2. 
 // Change to use masp_ccci_signfmt_verify_file(char *file_path, unsigned int *data_offset, unsigned int *data_sec_len)
 //  masp_ccci_signfmt_verify_file parameter description
-//    @ file_path: such as etc/firmware/modem.img
+//    @ file_path: such as vendor/firmw/modem.img
 //    @ data_offset: the offset address that bypass signature header
 //    @ data_sec_len: length of signature header + tail
 //    @ return value: 0-success;
@@ -1689,7 +1689,7 @@ int cpy_check(int md_id, unsigned long start_addr, unsigned int size)
 
     curr_fs = get_fs();
     set_fs(KERNEL_DS);
-    fp_id = osal_filp_open_read_only("/system/etc/firmware/modem.img");
+    fp_id = osal_filp_open_read_only("/system/vendor/firmw/modem.img");
     filp = (struct file *)osal_get_filp_struct(fp_id);
 
     filp->f_pos = 0;
