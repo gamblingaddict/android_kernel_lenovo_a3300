@@ -77,7 +77,6 @@ typedef unsigned long long uint64;
 #define DEBUG_AUD_CLK
 #endif
 
-/*
 #ifdef DEBUG_AUDDRV
 #define PRINTK_AUDDRV(format, args...) xlog_printk( ANDROID_LOG_VERBOSE,"Sound",format, ##args )
 #else
@@ -103,7 +102,6 @@ typedef unsigned long long uint64;
 #endif
 
 #define PRINTK_AUD_ERROR(format, args...) xlog_printk( ANDROID_LOG_VERBOSE,"Sound",format, ##args )
-*/
 
 #ifdef DEBUG_AUDDRV
 #define PRINTK_AUDDRV(format, args...) printk(format, ##args )
