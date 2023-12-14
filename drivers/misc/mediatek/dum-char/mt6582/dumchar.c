@@ -463,7 +463,9 @@ static ssize_t dumchar_read(struct file *filp, char __user *buf, size_t count, l
 		printk("DumChar:Wrong Dummy device Type %d ,it should be MTD or SDCARD!\n",dev->type);
 		return -EINVAL;
 	}
-		
+
+	fo->act_filp->f_pos = filp->f_pos;
+
 	if (dev->type == EMMC) {
 #ifdef CONFIG_MTK_EMMC_SUPPORT
 		// This should not happen, but just in case.
@@ -489,12 +491,10 @@ static ssize_t dumchar_read(struct file *filp, char __user *buf, size_t count, l
 			printk("DumChar: Wrong EMMC Region\n");
 			return -EINVAL;
 		}
-		fo->act_filp->f_pos = pos - dev->start_address;
 		*f_pos =  pos - dev->start_address;
 #endif
 	} else {
 		result = vfs_read(fo->act_filp, buf, count, f_pos);
-		fo->act_filp->f_pos = *f_pos;
 	}
 	return result;	
 }
@@ -549,7 +549,9 @@ ssize_t dumchar_write (struct file *filp, const char __user *buf, size_t count,l
 		printk("DumChar:Wrong Dummy device Type %d ,it should be MTD or SDCARD!\n",dev->type);
 		return -EINVAL;
 	}
-		
+
+	fo->act_filp->f_pos = filp->f_pos;
+
 	if (dev->type == EMMC) {
 #ifdef CONFIG_MTK_EMMC_SUPPORT
 		// This should not happen, but just in case.
@@ -575,12 +577,10 @@ ssize_t dumchar_write (struct file *filp, const char __user *buf, size_t count,l
 			printk("DumChar: Wrong EMMC Region\n");
 			return -EINVAL;
 		}
-		fo->act_filp->f_pos = pos -dev->start_address;
 		*f_pos =  pos - dev->start_address;
 #endif
 	} else {
 		result = vfs_write(fo->act_filp, buf, count, f_pos);
-		fo->act_filp->f_pos = *f_pos;
 	}
 	return result;	
 }
@@ -614,7 +614,9 @@ static long dumchar_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 		printk("DumChar:Wrong Dummy device Type %d ,it should be MTD or SDCARD!\n",dev->type);
 		return -EINVAL;
 	}
-		
+
+	fo->act_filp->f_pos = filp->f_pos;
+
 	if (dev->type == NAND) {
 		if (fo->act_filp->f_op->unlocked_ioctl) {
 			result = fo->act_filp->f_op->unlocked_ioctl(fo->act_filp, cmd, arg);
@@ -738,6 +740,8 @@ loff_t dumchar_llseek(struct file *filp, loff_t off, int whence)
 		return -EINVAL;
 	}
 
+	fo->act_filp->f_pos = filp->f_pos;
+
 	switch(whence) {
 		case SEEK_SET:
 			newpos = off;
@@ -753,9 +757,8 @@ loff_t dumchar_llseek(struct file *filp, loff_t off, int whence)
 	}
 			
 	if (newpos >= 0 && newpos <= dev->size) {
-		fo->act_filp->f_pos = newpos;
 		filp->f_pos = newpos;
-		return fo->act_filp->f_pos ;
+		return newpos;
 	}
 
 	return -EINVAL;	
