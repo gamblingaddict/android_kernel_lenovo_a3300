@@ -466,7 +466,18 @@ static ssize_t dumchar_read(struct file *filp, char __user *buf, size_t count, l
 		
 	if (dev->type == EMMC) {
 #ifdef CONFIG_MTK_EMMC_SUPPORT
+		// This should not happen, but just in case.
+		if (*f_pos > dev->size) {
+			printk("[dumchar_read] Read position (%lld) is larger than partition size (%s, %llu)\n", *f_pos, dev->dumname, dev->size);
+			return -EINVAL;
+		}
+
 		pos = *f_pos + dev->start_address;
+
+		if (*f_pos + count > dev->size) {
+			count = dev->size - *f_pos;
+		}
+
 		switch (dev->region) {
 		case EMMC_PART_USER:
 			result = vfs_read(fo->act_filp,buf,count,&pos);
@@ -541,7 +552,18 @@ ssize_t dumchar_write (struct file *filp, const char __user *buf, size_t count,l
 		
 	if (dev->type == EMMC) {
 #ifdef CONFIG_MTK_EMMC_SUPPORT
+		// This should not happen, but just in case.
+		if (*f_pos > dev->size) {
+			printk("[dumchar_write] Write position (%lld) is larger than partition size (%s, %llu)\n", *f_pos, dev->dumname, dev->size);
+			return -EINVAL;
+		}
+
 		pos = *f_pos + dev->start_address;
+
+		if (*f_pos + count > dev->size) {
+			count = dev->size - *f_pos;
+		}
+
 		switch(dev->region) {
 		case EMMC_PART_USER:
 			result = vfs_write(fo->act_filp, buf, count, &pos);
