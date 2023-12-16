@@ -3,7 +3,7 @@
 // support multi_key feature
 #define ACCDET_MULTI_KEY_FEATURE
 // after 5s disable accdet
-#define ACCDET_LOW_POWER
+//#define ACCDET_LOW_POWER
 
 //#define ACCDET_PIN_RECOGNIZATION
 //#define ACCDET_28V_MODE
